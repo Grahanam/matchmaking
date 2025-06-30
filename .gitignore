@@ -1,0 +1,88 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.packages
+.idea/
+.atom/
+.history
+.svn/
+*.iml
+
+# Flutter/Dart related
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-versions
+.package_config.json
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+
+# Symbolication and obfuscation
+app.*.symbols
+app.*.map.json
+
+# iOS
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/.generated
+ios/Pods/
+ios/Runner.xcworkspace/
+ios/DerivedData/
+ios/.symlinks/
+ios/.flutter-plugins
+ios/.flutter-plugins-dependencies
+ios/.dart_tool/
+
+# Android
+android/.gradle/
+android/captures/
+android/.idea/
+android/local.properties
+android/app/*.keystore
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# VSCode
+.vscode/
+
+# macOS
+macos/Flutter/Flutter.framework
+macos/Flutter/Flutter.podspec
+macos/Pods/
+macos/Runner.xcworkspace/
+macos/.dart_tool/
+macos/.flutter-plugins
+macos/.flutter-plugins-dependencies
+macos/xcuserdata/
+
+# Web
+web/.dart_tool/
+web/.js_build/
+web/.packages
+
+# Linux
+linux/flutter/ephemeral/
+linux/.dart_tool/
+linux/.flutter-plugins
+linux/.flutter-plugins-dependencies
+linux/obj/
+
+# Windows
+windows/flutter/ephemeral/
+windows/.dart_tool/
+windows/.flutter-plugins
+windows/.flutter-plugins-dependencies
+windows/obj/
+
+# Fuchsia
+.fuchsia/
+
+# Firebase-related
+firebase_app_id_file.json

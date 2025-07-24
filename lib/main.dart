@@ -1,23 +1,23 @@
 import 'package:app/bloc/auth/auth_bloc.dart';
 import 'package:app/bloc/event/event_bloc.dart';
-import 'package:app/bloc/eventdetail/eventdetail_bloc.dart';
 import 'package:app/firebase_options.dart';
 import 'package:app/pages/profile/profile_completion_page.dart';
-import 'package:app/pages/auth/entry_page.dart'; // Add this import
-import 'package:app/pages/auth/signin_page.dart';
+import 'package:app/pages/auth/entry_page.dart'; 
 import 'package:app/pages/events/nearby_event_page.dart';
 import 'package:app/pages/home/home.dart';
-import 'package:app/pages/login/login.dart';
 import 'package:app/services/auth_repo.dart';
 import 'package:app/services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
+  
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await dotenv.load(fileName: ".env");
   runApp(MyApp());
 }
 
@@ -40,9 +40,6 @@ class MyApp extends StatelessWidget {
           BlocProvider(
             create: (context) => AuthBloc(_authRepository, firestoreService),
           ),
-          // BlocProvider(
-          //   create: (context) => EventdetailBloc(),
-          // )
         ],
         child: MaterialApp(
           title: 'MatchBox',
@@ -53,6 +50,7 @@ class MyApp extends StatelessWidget {
             ),
             useMaterial3: true,
           ),
+          
           debugShowCheckedModeBanner: false,
           // Updated home with AuthWrapper
           home: const AuthWrapper(),

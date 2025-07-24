@@ -26,7 +26,7 @@ class Group {
       round: data['round'],
       name: data['name'],
       members: List<String>.from(data['members']),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 }

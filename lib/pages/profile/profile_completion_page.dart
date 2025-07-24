@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart'; // For debugPrint
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+// import 'package:image/image.dart' as img;
 
 class ProfileCompletionPage extends StatefulWidget {
   final bool
@@ -20,6 +22,10 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
   final _nameController = TextEditingController();
   final _introController = TextEditingController();
   final _hobbiesController = TextEditingController();
+  final _photoUrlController = TextEditingController();
+  bool _isValidImageUrl = true;
+  bool _isCheckingImage = false;
+  Uint8List? _imageBytes;
   DateTime? _selectedDob;
   String? _selectedGender;
   String? _selectedPreference;
@@ -47,6 +53,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
         setState(() {
           _nameController.text = data['name'] ?? '';
           _introController.text = data['introduction'] ?? '';
+          _photoUrlController.text = data['photoURL'] ?? '';
 
           // Handle hobbies as List or String
           final hobbies = data['hobbies'];
@@ -80,12 +87,70 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
     _nameController.dispose();
     _introController.dispose();
     _hobbiesController.dispose();
+    _photoUrlController.dispose();
     super.dispose();
   }
 
+   Future<bool> _validateImageUrl(String url) async {
+    if (url.isEmpty) return true;
+    
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.isAbsolute) return false;
+    
+    // Check if URL looks like an image
+    if (uri.pathSegments.isNotEmpty) {
+      final lastSegment = uri.pathSegments.last.toLowerCase();
+      if (lastSegment.contains('.')) {
+        final ext = lastSegment.split('.').last;
+        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+        if (imageExtensions.contains(ext)) return true;
+      }
+    }
+    
+    // Check by downloading image headers
+    try {
+      setState(() => _isCheckingImage = true);
+      final response = await http.head(uri);
+      
+      if (response.statusCode != 200) return false;
+      
+      final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+      return contentType.startsWith('image/');
+    } catch (e) {
+      return false;
+    } finally {
+      setState(() => _isCheckingImage = false);
+    }
+  }
+
+  Future<void> _loadPreview() async {
+    if (_photoUrlController.text.isEmpty) {
+      setState(() {
+        _imageBytes = null;
+        _isValidImageUrl = true;
+      });
+      return;
+    }
+    
+    final isValid = await _validateImageUrl(_photoUrlController.text);
+    setState(() => _isValidImageUrl = isValid);
+    
+    if (isValid) {
+      try {
+        final response = await http.get(Uri.parse(_photoUrlController.text));
+        if (response.statusCode == 200) {
+          setState(() => _imageBytes = response.bodyBytes);
+        }
+      } catch (e) {
+        setState(() => _imageBytes = null);
+      }
+    }
+  }
+
   Future<void> _pickDob() async {
-    if (widget.coreDetailsSet)
+    if (widget.coreDetailsSet) {
       return; // Prevent changing if core details are set
+    }
 
     final date = await showDatePicker(
       context: context,
@@ -105,9 +170,22 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+     if (_photoUrlController.text.isNotEmpty) {
+    final isValid = await _validateImageUrl(_photoUrlController.text);
+    setState(() => _isValidImageUrl = isValid);
+    
+    if (!isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid image URL')),
+      );
+      return;
+    }
+  }
+
     final profileData = <String, dynamic>{
       'updatedAt': FieldValue.serverTimestamp(),
       'introduction': _introController.text,
+      'photoURL': _photoUrlController.text,
     };
 
     // Process hobbies
@@ -132,7 +210,6 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
         return;
       }
 
-
       profileData.addAll({
         'name': _nameController.text,
         'dob': Timestamp.fromDate(_selectedDob!),
@@ -149,16 +226,16 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
           .update(profileData);
 
       if (!mounted) return;
-       // For new users, navigate back to home which will now show the home UI
-    if (!widget.coreDetailsSet) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const Home()),
-      );
-    } else {
-      // For existing users editing profile, just pop
-      Navigator.pop(context);
-    }
+      // For new users, navigate back to home which will now show the home UI
+      if (!widget.coreDetailsSet) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const Home()),
+        );
+      } else {
+        // For existing users editing profile, just pop
+        Navigator.pop(context,true);
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving profile: ${e.toString()}')),
@@ -169,7 +246,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-       onWillPop: () async {
+      onWillPop: () async {
         // Prevent back navigation if core details aren't set
         return widget.coreDetailsSet;
       },
@@ -183,7 +260,10 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
             if (!widget.coreDetailsSet)
               TextButton(
                 onPressed: _submitProfile,
-                child: const Text('Skip', style: TextStyle(color: Colors.white)),
+                child: const Text(
+                  'Skip',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
           ],
         ),
@@ -219,7 +299,41 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                                       : null,
                         ),
                         const SizedBox(height: 16),
-      
+                        TextFormField(
+  controller: _photoUrlController,
+  decoration: InputDecoration(
+    labelText: 'Profile Photo URL',
+    prefixIcon: const Icon(Icons.link),
+    helperText: 'Enter a direct image URL',
+    errorText: _isValidImageUrl ? null : 'Invalid image URL',
+    suffixIcon: _isCheckingImage
+        ? const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : null,
+  ),
+  keyboardType: TextInputType.url,
+  onChanged: (value) => _loadPreview(),
+),
+const SizedBox(height: 16),
+
+// Image preview
+if (_imageBytes != null)
+  Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.memory(
+        _imageBytes!,
+        height: 150,
+        width: double.infinity,
+        fit: BoxFit.cover,
+      ),
+    ),
+  ),
+                        const SizedBox(height: 16),
+
                         // Introduction field (always editable)
                         TextFormField(
                           controller: _introController,
@@ -230,7 +344,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-      
+
                         // Hobbies field (always editable)
                         TextFormField(
                           controller: _hobbiesController,
@@ -240,7 +354,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-      
+
                         // Date of Birth (locked if core details set)
                         ListTile(
                           leading: const Icon(Icons.cake),
@@ -268,7 +382,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                             ),
                           ),
                         const SizedBox(height: 16),
-      
+
                         // Gender (locked if core details set)
                         DropdownButtonFormField<String>(
                           value: _selectedGender,
@@ -285,7 +399,10 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                                     : null,
                           ),
                           items: const [
-                            DropdownMenuItem(value: 'male', child: Text('Male')),
+                            DropdownMenuItem(
+                              value: 'male',
+                              child: Text('Male'),
+                            ),
                             DropdownMenuItem(
                               value: 'female',
                               child: Text('Female'),
@@ -309,7 +426,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                                           : null,
                         ),
                         const SizedBox(height: 16),
-      
+
                         // Opposite Sex Preference (locked if core details set)
                         DropdownButtonFormField<String>(
                           value: _selectedPreference,
@@ -341,8 +458,9 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                           onChanged:
                               widget.coreDetailsSet
                                   ? null
-                                  : (value) =>
-                                      setState(() => _selectedPreference = value),
+                                  : (value) => setState(
+                                    () => _selectedPreference = value,
+                                  ),
                           validator:
                               widget.coreDetailsSet
                                   ? null
@@ -352,7 +470,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                                           : null,
                         ),
                         const SizedBox(height: 32),
-      
+
                         ElevatedButton(
                           onPressed: _submitProfile,
                           style: ElevatedButton.styleFrom(

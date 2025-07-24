@@ -3,8 +3,6 @@ import 'package:app/services/firestore_service.dart';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:app/services/auth_service.dart';
-import "package:app/services/auth_repo.dart";
 
 part 'auth_event.dart';
 part 'auth_state.dart';
@@ -142,7 +140,13 @@ Future<void> _navigateToProfile(
       //   }
       // }
       // add(CheckProfileStatus());
+      // emit(Authenticated());
+       if (user != null) {
       emit(Authenticated());
+    } else {
+      emit(AuthError('Wrong credentials'));
+      emit(UnAuthenticated());
+    }
     } catch (e) {
       emit(AuthError(e.toString()));
       emit(UnAuthenticated());

@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:app/bloc/event/event_bloc.dart';
+import 'package:app/models/question_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +10,34 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:app/services/firestore_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+  String get geminiApiKey => dotenv.env['GEMINI_API_TOKEN'] ?? '';
+  String get _aiApiToken => dotenv.env['AI_API_TOKEN'] ?? '';
+const String _aiApiEndpoint =
+    'https://models.github.ai/inference/chat/completions';
+
+class LocationSuggestion {
+  final String displayName;
+  final double lat;
+  final double lon;
+
+  LocationSuggestion({
+    required this.displayName,
+    required this.lat,
+    required this.lon,
+  });
+}
+
+extension StringCasingExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1)}";
+  }
+}
 
 class CreateEventPage extends StatefulWidget {
   const CreateEventPage({super.key});
@@ -17,7 +47,13 @@ class CreateEventPage extends StatefulWidget {
 }
 
 class _CreateEventPageState extends State<CreateEventPage> {
+  final _searchController = TextEditingController();
+  final MapController _mapController = MapController();
+  List<LocationSuggestion> _locationSuggestions = [];
+  final bool _isSearching = false;
+
   int? guestCount;
+
   final _formKey = GlobalKey<FormState>();
   final titleController = TextEditingController();
   final descController = TextEditingController();
@@ -28,6 +64,8 @@ class _CreateEventPageState extends State<CreateEventPage> {
   bool _isMapVisible = false;
   bool _hostParticipates = false;
   Position? _currentPosition;
+  String? _city;
+  String? _state;
 
   DateTime? selectedDateTime;
   Duration selectedDuration = const Duration(hours: 2);
@@ -35,8 +73,106 @@ class _CreateEventPageState extends State<CreateEventPage> {
   String guestType = 'friends';
   String locationType = 'home';
 
+  bool _isAILoading = false;
+  final TextEditingController _aiPromptController = TextEditingController();
+  Map<String, dynamic>? _aiSuggestions;
+
   List<String> selectedQuestionIds = [];
-  List<Map<String, dynamic>> availableQuestions = [];
+  // List<Map<String, dynamic>> availableQuestions = [];
+  List<QuestionModel> availableQuestions = []; // Changed to QuestionModel list
+  Map<QuestionCategory, List<QuestionModel>> groupedQuestions = {};
+
+  Future<void> _fetchQuestions() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Single query to get both common and user's custom questions
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('questionmodels')
+              .where(
+                Filter.or(
+                  // Get common questions (no user ID)
+                  Filter('userId', isNull: true),
+                  // Get custom questions for current user
+                  Filter('userId', isEqualTo: user.uid),
+                ),
+              )
+              .get();
+
+      if (!mounted) return;
+
+      final allQuestions =
+          snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+
+      // Group questions by category
+      final grouped = <QuestionCategory, List<QuestionModel>>{};
+      for (var question in allQuestions) {
+        grouped.putIfAbsent(question.category, () => []).add(question);
+      }
+
+      setState(() {
+        availableQuestions = allQuestions;
+        groupedQuestions = grouped;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('Error fetching questions: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load questions: ${e.toString()}')),
+      );
+    }
+  }
+
+  FutureOr<List<LocationSuggestion>> _searchLocations(String query) async {
+    if (query.isEmpty) {
+      return <LocationSuggestion>[];
+    }
+
+    try {
+      final encodedQuery = Uri.encodeQueryComponent(query);
+      final response = await http.get(
+        Uri.parse(
+          'https://nominatim.openstreetmap.org/search?format=json&q=$encodedQuery',
+        ),
+        headers: {'User-Agent': 'MatchmakingApp/1.0 (your@email.com)'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map<LocationSuggestion>((item) {
+          return LocationSuggestion(
+            displayName: item['display_name'] ?? 'Unknown location',
+            lat: double.tryParse(item['lat']?.toString() ?? '0') ?? 0.0,
+            lon: double.tryParse(item['lon']?.toString() ?? '0') ?? 0.0,
+          );
+        }).toList();
+      } else {
+        debugPrint('API error: ${response.statusCode} ${response.body}');
+        throw Exception('Failed to search locations');
+      }
+    } catch (e) {
+      debugPrint('Search error: $e');
+      return <LocationSuggestion>[];
+    }
+  }
+
+  // Add this method to handle location selection
+  void _onLocationSelected(LocationSuggestion suggestion) {
+    final point = LatLng(suggestion.lat, suggestion.lon);
+    setState(() {
+      _selectedLocation = point;
+      latController.text = suggestion.lat.toString();
+      lngController.text = suggestion.lon.toString();
+      _searchController.clear();
+      _locationSuggestions = [];
+    });
+
+    // Move map to the selected location
+    _mapController.move(_selectedLocation!, 15.0);
+    _reverseGeocode(point);
+  }
 
   @override
   void initState() {
@@ -50,7 +186,48 @@ class _CreateEventPageState extends State<CreateEventPage> {
     descController.dispose();
     latController.dispose();
     lngController.dispose();
+    _mapController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _reverseGeocode(LatLng point) async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse?format=json&lat=${point.latitude}&lon=${point.longitude}',
+        ),
+        headers: {'User-Agent': 'MatchmakingApp/1.0 (your@email.com)'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final address = data['address'] as Map<String, dynamic>?;
+        print(address);
+        if (address != null) {
+          setState(() {
+            // Different regions use different keys for city/state
+            _city =
+                address['city'] ??
+                address['state_district'] ??
+                address['town'] ??
+                address['county'] ??
+                address['village'] ??
+                'Unknown';
+
+            _state =
+                address['state'] ??
+                address['region'] ??
+                address['province'] ??
+                'Unknown';
+          });
+        }
+      } else {
+        debugPrint('Reverse geocoding error: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Reverse geocoding failed: $e');
+    }
   }
 
   // Add this new method to get current location
@@ -59,9 +236,9 @@ class _CreateEventPageState extends State<CreateEventPage> {
       final position = await Geolocator.getCurrentPosition();
       setState(() {
         _currentPosition = position;
-        if (_selectedLocation == null) {
-          _selectedLocation = LatLng(position.latitude, position.longitude);
-        }
+        // if (_selectedLocation == null) {
+        _selectedLocation ??= LatLng(position.latitude, position.longitude);
+        // }
       });
     } catch (e) {
       debugPrint('Error getting location: $e');
@@ -81,36 +258,68 @@ class _CreateEventPageState extends State<CreateEventPage> {
     });
   }
 
-  Future<void> _fetchQuestions() async {
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('questions')
-          .get()
-          .timeout(const Duration(seconds: 10));
+  // Future<void> _fetchQuestions() async {
+  //   try {
+  //     final snapshot =
+  //         await FirebaseFirestore.instance.collection('questionmodels').get();
 
-      if (!mounted) return;
+  //     if (!mounted) {
+  //       return;
+  //     }
 
-      if (snapshot.docs.isEmpty) {
-        debugPrint('No questions found in the database');
-        return;
-      }
+  //     final questions =
+  //         snapshot.docs.map((doc) {
+  //           return QuestionModel.fromFirestore(doc);
+  //         }).toList();
 
-      setState(() {
-        availableQuestions =
-            snapshot.docs.map((doc) {
-              return {
-                'id': doc.id,
-                'title': doc['title'],
-                'type': doc['type'] ?? 'answer',
-              };
-            }).toList();
-      });
-    } catch (e) {
-      if (!mounted) return;
-      debugPrint('Error fetching questions: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load questions: ${e.toString()}')),
-      );
+  //     // Group questions by category
+  //     final grouped = <QuestionCategory, List<QuestionModel>>{};
+  //     for (var question in questions) {
+  //       grouped.putIfAbsent(question.category, () => []).add(question);
+  //     }
+
+  //     setState(() {
+  //       availableQuestions = questions;
+  //       groupedQuestions = grouped;
+  //     });
+  //   } catch (e) {
+  //     if (!mounted) {
+  //       return;
+  //     }
+  //     debugPrint('Error fetching questions: $e');
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text('Failed to load questions: ${e.toString()}')),
+  //     );
+  //   }
+  // }
+
+  String _getQuestionTypeLabel(QuestionType type) {
+    switch (type) {
+      case QuestionType.scale:
+        return 'Scale';
+      case QuestionType.multipleChoice:
+        return 'Multiple Choice';
+      case QuestionType.openText:
+        return 'Open Text';
+      case QuestionType.rank:
+        return 'Ranking';
+      case QuestionType.multiSelect:
+        return 'Multi-Select';
+    }
+  }
+
+  String _getCategoryLabel(QuestionCategory category) {
+    switch (category) {
+      case QuestionCategory.coreValues:
+        return 'Core Values';
+      case QuestionCategory.personality:
+        return 'Personality';
+      case QuestionCategory.interests:
+        return 'Interests (Music, etc.)';
+      case QuestionCategory.goals:
+        return 'Relationship Goals';
+      case QuestionCategory.dealbreakers:
+        return 'Dealbreakers';
     }
   }
 
@@ -174,6 +383,314 @@ class _CreateEventPageState extends State<CreateEventPage> {
         time.minute,
       );
     });
+  }
+
+  void _showAISuggestionModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 20,
+                right: 20,
+                top: 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      "AI Event Assistant",
+                      style: GoogleFonts.raleway(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    if (_aiSuggestions == null)
+                      TextFormField(
+                        controller: _aiPromptController,
+                        maxLines: 3,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          labelText: 'Describe your event in 1-2 sentences',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.send),
+                            onPressed:
+                                () => _generateAISuggestions(setModalState),
+                          ),
+                        ),
+                      ),
+
+                    if (_isAILoading)
+                      const Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+
+                    if (_aiSuggestions != null)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Suggestions",
+                            style: GoogleFonts.raleway(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          _buildSuggestionItem(
+                            "Title",
+                            _aiSuggestions!['title'] ?? '',
+                            () {
+                              titleController.text =
+                                  _aiSuggestions!['title'] ?? '';
+                              Navigator.pop(context);
+                            },
+                          ),
+
+                          _buildSuggestionItem(
+                            "Description",
+                            _aiSuggestions!['description'] ?? '',
+                            () {
+                              descController.text =
+                                  _aiSuggestions!['description'] ?? '';
+                              Navigator.pop(context);
+                            },
+                          ),
+
+                          if (_aiSuggestions!['guest_count'] != null)
+                            _buildSuggestionItem(
+                              "Guest Count",
+                              _aiSuggestions!['guest_count'].toString(),
+                              () {
+                                setState(() {
+                                  guestCount = _aiSuggestions!['guest_count'];
+                                });
+                                Navigator.pop(context);
+                              },
+                            ),
+
+                          if (_aiSuggestions!['reason'] != null)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Text(
+                                "Reason: ${_aiSuggestions!['reason']}",
+                                style: TextStyle(
+                                  fontStyle: FontStyle.italic,
+                                  color:
+                                      Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            _aiPromptController.clear();
+                            _aiSuggestions = null;
+                            Navigator.pop(context);
+                          },
+                          child: const Text("Cancel"),
+                        ),
+                        if (_aiSuggestions != null)
+                          ElevatedButton(
+                            onPressed: () {
+                              titleController.text =
+                                  _aiSuggestions!['title'] ??
+                                  titleController.text;
+                              descController.text =
+                                  _aiSuggestions!['description'] ??
+                                  descController.text;
+
+                              if (_aiSuggestions!['guest_count'] != null) {
+                                setState(
+                                  () =>
+                                      guestCount =
+                                          _aiSuggestions!['guest_count'],
+                                );
+                              }
+                              Navigator.pop(context);
+                            },
+                            child: const Text("Apply All"),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSuggestionItem(
+    String label,
+    String value,
+    VoidCallback onApply,
+  ) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ListTile(
+        title: Text(label),
+        subtitle: Text(value),
+        trailing: IconButton(
+          icon: const Icon(Icons.check, color: Colors.green),
+          onPressed: onApply,
+        ),
+      ),
+    );
+  }
+
+  //   Future<void> _generateAISuggestions(void Function(void Function()) setModalState) async {
+  //     setModalState(() => _isAILoading = true);
+
+  //     try {
+  //       final prompt = """
+  // You are an expert event planner specializing in matchmaking events. Based on the user's description:
+  // "${_aiPromptController.text}"
+
+  // Generate compelling event title and description suggestions. Also suggest suitable guest count.
+
+  // Return response in JSON format with these keys:
+  // {
+  //   "title": "Event title suggestion",
+  //   "description": "Event description suggestion",
+  //   "guest_count": suggested guest count number,
+  //   "reason": "Brief explanation of suggestions"
+  // }
+  // """;
+
+  //       final response = await http.post(
+  //         Uri.parse('https://models.github.ai/inference/chat/completions'),
+  //        headers: {
+  //           'Authorization': 'Bearer $_aiApiToken',
+  //           'Content-Type': 'application/json',
+  //           'Accept': 'application/json',
+  //         },
+  //         body: jsonEncode({
+  //           "model": "openai/gpt-4.1",
+  //           "messages": [
+  //             {
+  //               "role": "system",
+  //               "content": "You are a helpful event planning assistant. Return ONLY valid JSON objects.",
+  //             },
+  //             {"role": "user", "content": prompt},
+  //           ],
+  //           "max_tokens": 500,
+  //           "temperature": 0.7,
+  //           "response_format": {"type": "json_object"},
+  //         }),
+  //       );
+
+  //       print(response.statusCode);
+
+  //       if (response.statusCode == 200) {
+  //         print('hi');
+  //         final data = jsonDecode(response.body);
+
+  //         final content = data['choices'][0]['message']['content'];
+  //         final suggestions = jsonDecode(content) as Map<String, dynamic>;
+  //         print('$content');
+  //         setModalState(() {
+  //           _aiSuggestions = suggestions;
+  //           _isAILoading = false;
+  //         });
+  //       } else {
+  //         throw Exception('AI service error: ${response.statusCode}');
+  //       }
+  //     } catch (e) {
+  //       setModalState(() {
+  //         _isAILoading = false;
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(content: Text('AI error: ${e.toString()}')),
+  //         );
+  //       });
+  //     }
+  //   }
+
+  Future<void> _generateAISuggestions(
+    void Function(void Function()) setModalState,
+  ) async {
+    setModalState(() => _isAILoading = true);
+
+    try {
+      final prompt = """
+You are an expert event planner specializing in matchmaking events. Based on the user's description:
+"${_aiPromptController.text}"
+
+Generate compelling event title and description suggestions. Also suggest suitable guest count.
+
+Return response in JSON format with these keys:
+{
+  "title": "Event title suggestion",
+  "description": "Event description suggestion",
+  "guest_count": suggested guest count number,
+  "reason": "Brief explanation of suggestions"
+}
+""";
+
+      final geminiApiEndpoint ='https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$geminiApiKey';
+
+      final response = await http.post(
+        Uri.parse(geminiApiEndpoint),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": [
+            {
+              "parts": [
+                {"text": prompt},
+              ],
+            },
+          ],
+          "generationConfig": {"responseMimeType": "application/json"},
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final content = data['candidates'][0]['content']['parts'][0]['text'];
+        final suggestions = jsonDecode(content) as Map<String, dynamic>;
+
+        setModalState(() {
+          _aiSuggestions = suggestions;
+          _isAILoading = false;
+        });
+      } else {
+        throw Exception(
+          'Gemini API error: ${response.statusCode}\n${response.body}',
+        );
+      }
+    } catch (e) {
+      setModalState(() {
+        _isAILoading = false;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('AI error: ${e.toString()}')));
+      });
+    }
   }
 
   Widget _buildSectionCard(Widget child) {
@@ -250,6 +767,17 @@ class _CreateEventPageState extends State<CreateEventPage> {
           "Create Match Event",
           style: GoogleFonts.raleway(fontWeight: FontWeight.bold),
         ),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.auto_awesome),
+            label: const Text('AI Suggestions'),
+            onPressed: () {
+              _aiPromptController.clear();
+              _aiSuggestions = null;
+              _showAISuggestionModal();
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -493,55 +1021,174 @@ class _CreateEventPageState extends State<CreateEventPage> {
 
                     // Add map view when visible
                     if (_isMapVisible && _selectedLocation != null)
-                      Container(
-                        height: 250,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: FlutterMap(
-                            options: MapOptions(
-                              initialCenter: _selectedLocation!,
-                              initialZoom: 15.0,
-                              onTap: (tapPosition, point) {
-                                setState(() {
-                                  _selectedLocation = point;
-                                  latController.text =
-                                      point.latitude.toString();
-                                  lngController.text =
-                                      point.longitude.toString();
-                                });
+                      Column(
+                        children: [
+                          // Search field
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: TypeAheadField<LocationSuggestion>(
+                              controller: _searchController,
+                              suggestionsCallback: _searchLocations,
+                              itemBuilder: (
+                                context,
+                                LocationSuggestion suggestion,
+                              ) {
+                                return ListTile(
+                                  leading: const Icon(Icons.location_on),
+                                  title: Text(suggestion.displayName),
+                                );
                               },
-                            ),
-                            children: [
-                              TileLayer(
-                                urlTemplate:
-                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.example.app',
-                              ),
-                              MarkerLayer(
-                                markers: [
-                                  Marker(
-                                    point: _selectedLocation!,
-                                    width: 40,
-                                    height: 40,
-                                    child: const Icon(
-                                      Icons.location_pin,
-                                      color: Colors.red,
-                                      size: 40,
+                              onSelected: _onLocationSelected,
+                              builder: (context, controller, focusNode) {
+                                return TextField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  decoration: InputDecoration(
+                                    hintText: 'Search for a location...',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
+                                    filled: true,
+                                    fillColor:
+                                        Theme.of(
+                                          context,
+                                        ).colorScheme.surfaceContainerHighest,
+                                  ),
+                                );
+                              },
+                              loadingBuilder:
+                                  (context) => const Padding(
+                                    padding: EdgeInsets.all(16.0),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  ),
+                              emptyBuilder:
+                                  (context) => const Padding(
+                                    padding: EdgeInsets.all(16.0),
+                                    child: Text('No locations found'),
+                                  ),
+                            ),
+                          ),
+
+                          // Map container
+                          Container(
+                            height: 250,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: FlutterMap(
+                                mapController: _mapController,
+                                options: MapOptions(
+                                  initialCenter: _selectedLocation!,
+                                  initialZoom: 15.0,
+                                  onTap: (tapPosition, point) async {
+                                    setState(() {
+                                      _selectedLocation = point;
+                                      latController.text =
+                                          point.latitude.toString();
+                                      lngController.text =
+                                          point.longitude.toString();
+                                      _searchController.clear();
+                                    });
+
+                                    await _reverseGeocode(point); // Add this
+                                  },
+                                ),
+                                children: [
+                                  TileLayer(
+                                    urlTemplate:
+                                        'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+                                    userAgentPackageName: 'com.example.app',
+                                  ),
+                                  MarkerLayer(
+                                    markers: [
+                                      Marker(
+                                        point: _selectedLocation!,
+                                        width: 40,
+                                        height: 40,
+                                        child: const Icon(
+                                          Icons.location_pin,
+                                          color: Colors.red,
+                                          size: 40,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (_city != null || _state != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          '${_city ?? ''}, ${_state ?? ''}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ),
 
+                    // if (_isMapVisible && _selectedLocation != null)
+                    //   Container(
+                    //     height: 250,
+                    //     decoration: BoxDecoration(
+                    //       borderRadius: BorderRadius.circular(12),
+                    //       border: Border.all(
+                    //         color: Theme.of(context).colorScheme.outline,
+                    //       ),
+                    //     ),
+                    //     child: ClipRRect(
+                    //       borderRadius: BorderRadius.circular(12),
+                    //       child: FlutterMap(
+                    //         options: MapOptions(
+                    //           initialCenter: _selectedLocation!,
+                    //           initialZoom: 15.0,
+                    //           onTap: (tapPosition, point) {
+                    //             setState(() {
+                    //               _selectedLocation = point;
+                    //               latController.text =
+                    //                   point.latitude.toString();
+                    //               lngController.text =
+                    //                   point.longitude.toString();
+                    //             });
+                    //           },
+                    //         ),
+                    //         children: [
+                    //           TileLayer(
+                    //             urlTemplate:
+                    //                 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+                    //             userAgentPackageName: 'com.example.app',
+                    //           ),
+                    //           MarkerLayer(
+                    //             markers: [
+                    //               Marker(
+                    //                 point: _selectedLocation!,
+                    //                 width: 40,
+                    //                 height: 40,
+                    //                 child: const Icon(
+                    //                   Icons.location_pin,
+                    //                   color: Colors.red,
+                    //                   size: 40,
+                    //                 ),
+                    //               ),
+                    //             ],
+                    //           ),
+                    //         ],
+                    //       ),
+                    //     ),
+                    //   ),
                     if (_isMapVisible) const SizedBox(height: 16),
 
                     // Existing latitude field
@@ -560,20 +1207,20 @@ class _CreateEventPageState extends State<CreateEventPage> {
                     // Add current location button
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
-                      onPressed: () {
+                      onPressed: () async {
                         if (_currentPosition != null) {
+                          final point = LatLng(
+                            _currentPosition!.latitude,
+                            _currentPosition!.longitude,
+                          );
                           setState(() {
-                            _selectedLocation = LatLng(
-                              _currentPosition!.latitude,
-                              _currentPosition!.longitude,
-                            );
-                            latController.text =
-                                _currentPosition!.latitude.toString();
-                            lngController.text =
-                                _currentPosition!.longitude.toString();
+                            _selectedLocation = point;
+                            latController.text = point.latitude.toString();
+                            lngController.text = point.longitude.toString();
                           });
+                          await _reverseGeocode(point); // Add this
                         } else {
-                          _getCurrentLocation();
+                          await _getCurrentLocation();
                         }
                       },
                       icon: const Icon(Icons.my_location),
@@ -589,73 +1236,6 @@ class _CreateEventPageState extends State<CreateEventPage> {
                 ),
               ),
 
-              // _buildSectionCard(
-              //   Column(
-              //     crossAxisAlignment: CrossAxisAlignment.start,
-              //     children: [
-              //       Text(
-              //         "Location",
-              //         style: GoogleFonts.raleway(
-              //           textStyle: const TextStyle(
-              //             fontSize: 16,
-              //             fontWeight: FontWeight.bold
-              //           ),
-              //         ),
-              //       ),
-              //       const SizedBox(height: 16),
-              //       TextFormField(
-              //         controller: latController,
-              //         style: TextStyle(
-              //           color: Theme.of(context).colorScheme.onSurface
-              //         ),
-              //         decoration: InputDecoration(
-              //           labelText: 'Latitude',
-              //           labelStyle: TextStyle(
-              //             color: Theme.of(context).colorScheme.onSurfaceVariant
-              //           ),
-              //           prefixIcon: const Icon(Icons.location_on),
-              //           border: const OutlineInputBorder(
-              //             borderRadius: BorderRadius.all(Radius.circular(12)),
-              //           ),
-              //           filled: true,
-              //           fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-              //         ),
-              //         keyboardType: TextInputType.number,
-              //         validator: (value) {
-              //           if (value?.isEmpty ?? true) return 'Required';
-              //           // if (double.tryParse(value) == null) return 'Invalid number';
-              //           return null;
-              //         },
-              //       ),
-              //       const SizedBox(height: 16),
-              //       TextFormField(
-              //         controller: lngController,
-              //         style: TextStyle(
-              //           color: Theme.of(context).colorScheme.onSurface
-              //         ),
-              //         decoration: InputDecoration(
-              //           labelText: 'Longitude',
-              //           labelStyle: TextStyle(
-              //             color: Theme.of(context).colorScheme.onSurfaceVariant
-              //           ),
-              //           prefixIcon: const Icon(Icons.location_on),
-              //           border: const OutlineInputBorder(
-              //             borderRadius: BorderRadius.all(Radius.circular(12)),
-              //           ),
-              //           filled: true,
-              //           fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-              //         ),
-              //         keyboardType: TextInputType.number,
-              //         validator: (value) {
-              //           if (value?.isEmpty ?? true) return 'Required';
-              //           // if (double.tryParse(value) == null) return 'Invalid number';
-              //           return null;
-              //         },
-              //       ),
-              //     ],
-              //   ),
-              // ),
-              const SizedBox(height: 16),
               _buildSectionCard(
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -670,7 +1250,8 @@ class _CreateEventPageState extends State<CreateEventPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (availableQuestions.isEmpty)
+
+                    if (groupedQuestions.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
@@ -679,34 +1260,180 @@ class _CreateEventPageState extends State<CreateEventPage> {
                         ),
                       )
                     else
-                      ...availableQuestions.map(
-                        (q) => CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            q['title'],
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
+                      ...groupedQuestions.entries.map((entry) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: 16,
+                                bottom: 8,
+                              ),
+                              child: Text(
+                                _getCategoryLabel(entry.key),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
                             ),
-                          ),
-                          value: selectedQuestionIds.contains(q['id']),
-                          onChanged: (bool? value) {
-                            setState(() {
-                              if (value == true) {
-                                selectedQuestionIds.add(q['id']);
-                              } else {
-                                selectedQuestionIds.removeWhere(
-                                  (id) => id == q['id'],
-                                );
-                              }
-                            });
-                          },
-                          activeColor: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
+                            ...entry.value.map(
+                              (q) => CheckboxListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  q.text,
+                                  style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Question type badge
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        _getQuestionTypeLabel(q.type),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+
+                                    // Display options for relevant question types
+                                    if (q.options != null &&
+                                        q.options!.isNotEmpty)
+                                      Text(
+                                        'Options: ${q.options!.join(', ')}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+
+                                    // Display scale range for scale questions
+                                    if (q.type == QuestionType.scale &&
+                                        q.scaleMin != null &&
+                                        q.scaleMax != null)
+                                      Text(
+                                        'Scale: ${q.scaleMin} to ${q.scaleMax}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                value: selectedQuestionIds.contains(q.id),
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      selectedQuestionIds.add(q.id);
+                                    } else {
+                                      selectedQuestionIds.removeWhere(
+                                        (id) => id == q.id,
+                                      );
+                                    }
+                                  });
+                                },
+                                activeColor:
+                                    Theme.of(context).colorScheme.primary,
+                                secondary: Text(
+                                  'W: ${q.weight}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
                   ],
                 ),
               ),
 
+              const SizedBox(height: 16),
+
+              // _buildSectionCard(
+              //   Column(
+              //     crossAxisAlignment: CrossAxisAlignment.start,
+              //     children: [
+              //       Text(
+              //         'Questions for Guests',
+              //         style: GoogleFonts.raleway(
+              //           textStyle: const TextStyle(
+              //             fontSize: 16,
+              //             fontWeight: FontWeight.bold,
+              //           ),
+              //         ),
+              //       ),
+              //       const SizedBox(height: 12),
+              //       if (availableQuestions.isEmpty)
+              //         Padding(
+              //           padding: const EdgeInsets.symmetric(vertical: 8),
+              //           child: Text(
+              //             'No questions available',
+              //             style: TextStyle(color: Colors.grey.shade400),
+              //           ),
+              //         )
+              //       else
+              //         ...availableQuestions.map(
+              //           (q) => CheckboxListTile(
+              //             contentPadding: EdgeInsets.zero,
+              //             title: Text(
+              //               q['title'],
+              //               style: TextStyle(
+              //                 color: Theme.of(context).colorScheme.onSurface,
+              //               ),
+              //             ),
+              //             value: selectedQuestionIds.contains(q['id']),
+              //             onChanged: (bool? value) {
+              //               setState(() {
+              //                 if (value == true) {
+              //                   selectedQuestionIds.add(q['id']);
+              //                 } else {
+              //                   selectedQuestionIds.removeWhere(
+              //                     (id) => id == q['id'],
+              //                   );
+              //                 }
+              //               });
+              //             },
+              //             activeColor: Theme.of(context).colorScheme.primary,
+              //           ),
+              //         ),
+              //     ],
+              //   ),
+              // ),
               const SizedBox(height: 16),
               _buildSectionCard(
                 Column(
@@ -762,48 +1489,48 @@ class _CreateEventPageState extends State<CreateEventPage> {
                             );
                           }).toList(),
                     ),
-                  
                   ],
                 ),
               ),
 
               const SizedBox(height: 24),
 
-                Row(
-                children: [
-                  Checkbox(
-                    value: _hostParticipates,
-                    onChanged:
-                        (value) =>
-                            setState(() => _hostParticipates = value ?? true),
-                    activeColor: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      "I will participate in this event",
-                      style: GoogleFonts.raleway(
-                        fontSize: 15,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),  Padding(
-        padding: const EdgeInsets.only(left: 32),
-        child: Text(
-          _hostParticipates 
-            ? "You'll be included in matchmaking" 
-            : "You'll only manage the event",
-          style: GoogleFonts.raleway(
-            fontSize: 13,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ),
-      const SizedBox(height: 24),
-              
+              // Row(
+              //   children: [
+              //     Checkbox(
+              //       value: _hostParticipates,
+              //       onChanged:
+              //           (value) =>
+              //               setState(() => _hostParticipates = value ?? true),
+              //       activeColor: Theme.of(context).colorScheme.primary,
+              //     ),
+              //     const SizedBox(width: 8),
+              //     Flexible(
+              //       child: Text(
+              //         "I will participate in this event",
+              //         style: GoogleFonts.raleway(
+              //           fontSize: 15,
+              //           color: Theme.of(context).colorScheme.onSurface,
+              //         ),
+              //       ),
+              //     ),
+              //   ],
+              // ),
+              // Padding(
+              //   padding: const EdgeInsets.only(left: 32),
+              //   child: Text(
+              //     _hostParticipates
+              //         ? "You'll be included in matchmaking"
+              //         : "You'll only manage the event",
+              //     style: GoogleFonts.raleway(
+              //       fontSize: 13,
+              //       color: Theme.of(context).colorScheme.onSurfaceVariant,
+              //       fontStyle: FontStyle.italic,
+              //     ),
+              //   ),
+              // ),
+              const SizedBox(height: 24),
+
               BlocConsumer<EventBloc, EventState>(
                 listener: (context, state) {
                   if (state is EventSuccess) {
@@ -830,7 +1557,31 @@ class _CreateEventPageState extends State<CreateEventPage> {
                             ? null
                             : () {
                               if (!_formKey.currentState!.validate()) return;
+                              final city = _city ?? '';
+                              final state = _state ?? '';
 
+                              // Split into lowercase keyword list
+                              // final cityKeywords =
+                              //     {
+                              //       ...city.toLowerCase().split(' '),
+                              //       ...state.toLowerCase().split(' '),
+                              //       city.toLowerCase(),
+                              //       state.toLowerCase(),
+                              //     }.toList();
+
+                              final cityKeywords =
+                                  {
+                                        _city?.toLowerCase().trim(),
+                                        _state?.toLowerCase().trim(),
+                                        _city?.trim(),
+                                        _state?.trim(),
+                                        '${_city ?? ''}, ${_state ?? ''}'
+                                            .toLowerCase()
+                                            .trim(),
+                                      }
+                                      .where((e) => e != null && e.isNotEmpty)
+                                      .cast<String>()
+                                      .toList();
                               final eventData = {
                                 'title': titleController.text,
                                 'description': descController.text,
@@ -838,6 +1589,9 @@ class _CreateEventPageState extends State<CreateEventPage> {
                                   double.tryParse(latController.text) ?? 0.0,
                                   double.tryParse(lngController.text) ?? 0.0,
                                 ),
+                                'city': city,
+                                'state': state,
+                                'cityKeywords': cityKeywords,
                                 'matchingType': matchingType,
                                 'guestType': guestType,
                                 'guestCount': guestCount ?? 0,
@@ -848,7 +1602,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
                                 'questionnaire': selectedQuestionIds,
                                 'createdBy':
                                     FirebaseAuth.instance.currentUser!.uid,
-                                'hostParticipates':_hostParticipates,
+                                'hostParticipates': _hostParticipates,
                                 'createdAt': FieldValue.serverTimestamp(),
                                 'updatedAt': FieldValue.serverTimestamp(),
                               };

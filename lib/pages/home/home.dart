@@ -1,24 +1,22 @@
 import 'package:app/bloc/auth/auth_bloc.dart';
 import 'package:app/bloc/event/event_bloc.dart';
 import 'package:app/pages/auth/signin_page.dart';
+import 'package:app/pages/events/popular_event_page.dart';
 import 'package:app/pages/events/your_event_page.dart';
+import 'package:app/pages/match/match_page.dart';
 import 'package:app/pages/profile/profile_page.dart';
+import 'package:app/pages/questions/create_question_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'dart:ui';
 import 'dart:async';
-
 import 'package:app/pages/events/create_event_page.dart';
 import 'package:app/pages/events/nearby_event_page.dart';
 import 'package:app/pages/events/applied_event_page.dart';
-// import 'package:app/pages/questions/create_question_page.dart';
-import 'package:app/pages/profile/profile_completion_page.dart'; // Add this import
-import 'package:app/models/chat.dart';
-import 'package:app/services/firestore_service.dart';
+import 'package:app/pages/profile/profile_completion_page.dart';
 import 'package:app/pages/chat/user_chat_list_page.dart';
 
 class Home extends StatefulWidget {
@@ -113,9 +111,10 @@ class _HomeState extends State<Home> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is UnAuthenticated) {
-          Navigator.pushReplacement(
+          Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const SignIn()),
+            (route) => false, // Remove all existing routes
           );
         }
       },
@@ -204,7 +203,12 @@ class _HomeState extends State<Home> {
                           Colors.orange.shade600,
                           Colors.orange.shade400,
                         ],
-                        onTap: () {},
+                         onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PopularEventsPage()),
+    );
+  },
                         imageUrl:
                             "https://images.unsplash.com/photo-1702144949391-e905ba8d36dc?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTh8fHBhcnR5JTIwaG9zdHxlbnwwfHwwfHx8MA%3D%3D",
                       ),
@@ -355,20 +359,45 @@ class _HomeState extends State<Home> {
           _buildQuickActionButton(
             icon: Icons.people,
             label: "Matches",
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => MatchesPage()),
+              );
+            },
             color: Colors.pink,
           ),
-          _buildQuickActionButton(
-            icon: Icons.favorite,
-            label: "Likes",
-            onTap: () {},
-            color: Colors.red,
-          ),
+          // _buildQuickActionButton(
+          //   icon: Icons.favorite,
+          //   label: "Likes",
+          //   onTap: () {},
+          //   color: Colors.red,
+          // ),
           _buildQuickActionButton(
             icon: Icons.chat,
             label: "Messages",
-            onTap: () => _onItemTapped(1),
+            onTap:
+                () => {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const UserChatListPage(),
+                    ),
+                  ),
+                },
             color: Colors.blue,
+          ),
+          // Add this button for testing question creation
+          _buildQuickActionButton(
+            icon: Icons.add_circle,
+            label: "Create Question",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => CreateQuestionPage()),
+              );
+            },
+            color: Colors.green,
           ),
         ],
       ),

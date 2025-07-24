@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'package:app/models/question.dart';
+import 'package:app/models/question_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/event.dart';
 import '../models/eventapplication.dart';
 import '../models/chat.dart';
@@ -21,6 +23,10 @@ class FirestoreService {
                   .toList(),
         );
   }
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  
 
   // Apply to event
   Future<void> applyToEvent({
@@ -204,46 +210,54 @@ class FirestoreService {
   }
 
   Future<List<Event>> getNearbyEvents(
-    double userLat,
-    double userLng, {
+    double? userLat,
+    double? userLng, {
     double radiusInKm = 10,
+    String? city,
   }) async {
     final now = Timestamp.fromDate(DateTime.now());
+    Query query = _db.collection('events').where('endTime', isGreaterThan: now);
 
-    final snapshot =
-        await _db
-            .collection('events')
-            .where('endTime', isGreaterThan: now)
-            .get();
+    if (city != null && city.isNotEmpty) {
+      // Filter by city only
+      // query = query.where('city', isEqualTo: city);
+      query = query.where('cityKeywords', arrayContains: city.toLowerCase().trim());
+      final snapshot = await query.get();
+      List<Event> events =
+          snapshot.docs.map((doc) => Event.fromDocumentSnapshot(doc)).toList();
 
-    // final snapshot = await _db.collection('events').get();
+      print("Queried by city: $city");
+      for (var event in events) {
+        print(event);
+      }
+      return events;
+    }
 
-    List<Event> allEvents =
-        snapshot.docs.map((doc) => Event.fromDocumentSnapshot(doc)).where((
-          event,
-        ) {
-          final dist = _calculateDistance(
-            userLat,
-            userLng,
-            event.location.latitude,
-            event.location.longitude,
-          );
-          return dist <= radiusInKm;
-        }).toList();
-    // snapshot.docs.map((doc) {
-    //   return Event.fromDocumentSnapshot(doc);
-    // }).toList();
+    // No city, fetch all and filter by location
+    final snapshot = await query.get();
+    List<Event> events =
+        snapshot.docs.map((doc) => Event.fromDocumentSnapshot(doc)).toList();
 
-    return allEvents.where((event) {
-      double dist = _calculateDistance(
-        userLat,
-        userLng,
-        event.location.latitude,
-        event.location.longitude,
-      );
-      return dist <= radiusInKm;
-    }).toList();
+    if (userLat != null && userLng != null) {
+      events =
+          events.where((event) {
+            final dist = _calculateDistance(
+              userLat,
+              userLng,
+              event.location.latitude,
+              event.location.longitude,
+            );
+            return dist <= radiusInKm;
+          }).toList();
+    }
+
+    print("Queried by location near: ($userLat, $userLng)");
+    for (var event in events) {
+      print(event);
+    }
+    return events;
   }
+
 
   double _calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // Earth radius in km
@@ -302,108 +316,174 @@ class FirestoreService {
     return snapshot.docs.map((doc) => Question.fromDocument(doc)).toList();
   }
 
- // 1. Get check-in status
-Future<Map<String, dynamic>> getCheckInStatus({
-  required String eventId,
-  required String userId,
-}) async {
-  try {
-    final docRef = _db.collection('checkins').doc('$eventId-$userId');
-    final checkinDoc = await docRef.get();
-    if (checkinDoc.exists) {
-      final data = checkinDoc.data();
-      if (data != null && data.containsKey('checkedInAt')) {
-        return {
-          'isCheckedIn': true,
-          'checkInTime': (data['checkedInAt'] as Timestamp).toDate(),
-        };
+  // 1. Get check-in status
+  Future<Map<String, dynamic>> getCheckInStatus({
+    required String eventId,
+    required String userId,
+  }) async {
+    try {
+      final docRef = _db.collection('checkins').doc('$eventId-$userId');
+      final checkinDoc = await docRef.get();
+      if (checkinDoc.exists) {
+        final data = checkinDoc.data();
+        if (data != null && data.containsKey('checkedInAt')) {
+          return {
+            'isCheckedIn': true,
+            'checkInTime': (data['checkedInAt'] as Timestamp).toDate(),
+          };
+        }
       }
+      return {'isCheckedIn': false};
+    } catch (e) {
+      print('Error fetching check-in status: $e');
+      return {'isCheckedIn': false};
     }
-    return {'isCheckedIn': false};
-  } catch (e) {
-    print('Error fetching check-in status: $e');
-    return {'isCheckedIn': false};
   }
-}
 
-// 3. Get match document
-Future<DocumentSnapshot> getMatchDocument(String eventId, String userId) async {
-  return await _db
-      .collection('event_matches')
-      .doc(eventId)
-      .collection('matches')
-      .doc(userId)
-      .get();
-}
+  // 3. Get match document
+  Future<DocumentSnapshot> getMatchDocument(
+    String eventId,
+    String userId,
+  ) async {
+    return await _db
+        .collection('event_matches')
+        .doc(eventId)
+        .collection('matches')
+        .doc(userId)
+        .get();
+  }
 
-// 4. Additional helper method needed for BLoC
-Future<DocumentSnapshot> getEventDocument(String eventId) async {
-  return await _db.collection('events').doc(eventId).get();
-}
+  // 4. Additional helper method needed for BLoC
+  Future<DocumentSnapshot> getEventDocument(String eventId) async {
+    return await _db.collection('events').doc(eventId).get();
+  }
 
-// Get user document
-Future<DocumentSnapshot> getUserDocument(String userId) async {
-  return await _db.collection('users').doc(userId).get();
-}
+  // Get user document
+  Future<DocumentSnapshot> getUserDocument(String userId) async {
+    return await _db.collection('users').doc(userId).get();
+  }
 
-// --- CHAT FEATURE ---
+  // --- CHAT FEATURE ---
 
-/// Get all chat threads for a user
-Stream<List<Chat>> getUserChats(String userId) {
-  return _db
-      .collection('chats')
-      .where('users', arrayContains: userId)
-      .orderBy('lastTimestamp', descending: true)
-      .snapshots()
-      .map((snapshot) => snapshot.docs.map((doc) => Chat.fromDocument(doc)).toList());
-}
+  /// Get all chat threads for a user
+  Stream<List<Chat>> getUserChats(String userId) {
+    return _db
+        .collection('chats')
+        .where('users', arrayContains: userId)
+        .orderBy('lastTimestamp', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs.map((doc) => Chat.fromDocument(doc)).toList(),
+        );
+  }
 
-/// Get or create a chat between two users (sorted by userId)
-Future<String> getOrCreateChat(String userId1, String userId2) async {
-  final users = [userId1, userId2]..sort();
-  final chatId = users.join('_');
-  final chatRef = _db.collection('chats').doc(chatId);
-  final chatDoc = await chatRef.get();
-  if (!chatDoc.exists) {
-    await chatRef.set({
-      'users': users,
-      'lastMessage': '',
-      'lastTimestamp': FieldValue.serverTimestamp(),
+  /// Get or create a chat between two users (sorted by userId)
+  Future<String> getOrCreateChat(String userId1, String userId2) async {
+    final users = [userId1, userId2]..sort();
+    final chatId = users.join('_');
+    final chatRef = _db.collection('chats').doc(chatId);
+    final chatDoc = await chatRef.get();
+    if (!chatDoc.exists) {
+      await chatRef.set({
+        'users': users,
+        'lastMessage': '',
+        'lastTimestamp': FieldValue.serverTimestamp(),
+      });
+    }
+    return chatId;
+  }
+
+  /// Send a message in a chat
+  Future<void> sendMessage({
+    required String chatId,
+    required String senderId,
+    required String text,
+  }) async {
+    final messageRef =
+        _db.collection('chats').doc(chatId).collection('messages').doc();
+    final now = Timestamp.now();
+    await messageRef.set({
+      'senderId': senderId,
+      'text': text,
+      'timestamp': now,
+    });
+    // Update last message in chat doc
+    await _db.collection('chats').doc(chatId).update({
+      'lastMessage': text,
+      'lastTimestamp': now,
     });
   }
-  return chatId;
-}
 
-/// Send a message in a chat
-Future<void> sendMessage({
-  required String chatId,
-  required String senderId,
-  required String text,
-}) async {
-  final messageRef = _db.collection('chats').doc(chatId).collection('messages').doc();
-  final now = Timestamp.now();
-  await messageRef.set({
-    'senderId': senderId,
-    'text': text,
-    'timestamp': now,
-  });
-  // Update last message in chat doc
-  await _db.collection('chats').doc(chatId).update({
-    'lastMessage': text,
-    'lastTimestamp': now,
-  });
-}
+  /// Stream messages in a chat (ordered by timestamp)
+  Stream<List<Message>> streamMessages(String chatId) {
+    return _db
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: false) // Ascending order
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs
+                  .map(
+                    (doc) => Message.fromMap(
+                      doc.data(),
+                      doc.id,
+                    ),
+                  )
+                  .toList(),
+        );
+  }
 
-/// Stream messages in a chat (ordered by timestamp)
-Stream<List<Message>> streamMessages(String chatId) {
-  return _db
-      .collection('chats')
-      .doc(chatId)
-      .collection('messages')
-      .orderBy('timestamp', descending: false) // Ascending order
-      .snapshots()
-      .map((snapshot) => snapshot.docs
-          .map((doc) => Message.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-          .toList());
+  // Future<void> saveQuestion(QuestionModel question) async {
+  //   try {
+  //     print(question);
+  //     final data = question.toFirestore();
+
+  //     // Handle createdAt properly
+  //     if (question.id.isEmpty) {
+  //       data['createdAt'] = FieldValue.serverTimestamp();
+  //     } else {
+  //       // Keep existing createdAt when updating
+  //       if (!data.containsKey('createdAt')) {
+  //         data['createdAt'] = question.createdAt;
+  //       }
+  //     }
+
+  //     if (question.id.isEmpty) {
+  //       DocumentReference docRef = await _db
+  //           .collection('questionmodels')
+  //           .add(data);
+  //       print('Question added with ID: ${docRef.id}');
+  //     } else {
+  //       await _db.collection('questionmodels').doc(question.id).update(data);
+  //       print('Question updated: ${question.id}');
+  //     }
+  //   } catch (e, stack) {
+  //     print('Error saving question: $e');
+  //     print(stack);
+  //     rethrow;
+  //   }
+  // }
+
+
+Future<void> saveQuestion(QuestionModel question) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) throw Exception('User not authenticated');
+  
+  // For custom questions, set userId
+  final questionWithUserId = question.copyWith(userId: user.uid);
+  
+  if (question.id.isEmpty) {
+    await _firestore
+        .collection('questionmodels')
+        .add(questionWithUserId.toFirestore());
+  } else {
+    await _firestore
+        .collection('questionmodels')
+        .doc(question.id)
+        .update(questionWithUserId.toFirestore());
+  }
 }
 }

@@ -4,38 +4,20 @@ import 'package:app/bloc/auth/auth_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:app/services/firestore_service.dart';
-import 'package:app/models/event.dart';
 import 'package:app/pages/profile/profile_completion_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
-  Future<Map<String, dynamic>?> _fetchUserData() async {
+  Stream<DocumentSnapshot> _getUserStream() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    return doc.data();
-  }
-
-  Future<List<Event>> _fetchHostedEvents(String userId) async {
-    return await FirestoreService().getEventsByCreator(userId);
-  }
-
-  Future<List<Event>> _fetchAttendedEvents(String userId) async {
-    // Get all event_applications where userId == current user and status == 'accepted'
-    final apps = await FirebaseFirestore.instance
-        .collection('event_applications')
-        .where('userId', isEqualTo: userId)
-        .where('status', isEqualTo: 'accepted')
-        .get();
-    final eventIds = apps.docs.map((doc) => doc['eventId'] as String).toList();
-    if (eventIds.isEmpty) return [];
-    final eventsSnap = await FirebaseFirestore.instance
-        .collection('events')
-        .where(FieldPath.documentId, whereIn: eventIds)
-        .get();
-    return eventsSnap.docs.map((doc) => Event.fromDocumentSnapshot(doc)).toList();
+    if (user == null) {
+      return const Stream.empty();
+    }
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots();
   }
 
   @override
@@ -44,16 +26,24 @@ class ProfilePage extends StatelessWidget {
     if (user == null) {
       return const Scaffold(body: Center(child: Text('Not logged in')));
     }
+    
     return SafeArea(
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: FutureBuilder<Map<String, dynamic>?>(
-          future: _fetchUserData(),
+        body: StreamBuilder<DocumentSnapshot>(
+          stream: _getUserStream(),
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
+            // Handle loading state
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
-            final userData = snapshot.data!;
+            
+            // Handle error or no data
+            if (!snapshot.hasData || snapshot.data == null || !snapshot.data!.exists) {
+              return const Center(child: Text('User data not found'));
+            }
+            
+            final userData = snapshot.data!.data() as Map<String, dynamic>;
             final photoUrl = userData['photoURL'] as String?;
             final name = userData['name'] ?? '';
             final introduction = userData['introduction'] ?? '';
@@ -77,7 +67,7 @@ class ProfilePage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 24),
-                        _buildEditProfileButton(),
+                        _buildEditProfileButton(context),
                         const SizedBox(height: 32),
                         _buildSectionTitle('BASIC INFO'),
                         const SizedBox(height: 16),
@@ -187,7 +177,7 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildEditProfileButton() {
+  Widget _buildEditProfileButton(BuildContext context) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -198,31 +188,29 @@ class ProfilePage extends StatelessWidget {
           end: Alignment.centerRight,
         ),
       ),
-      child: Builder(
-        builder: (context) => ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ProfileCompletionPage(coreDetailsSet: true),
-              ),
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      child: ElevatedButton(
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ProfileCompletionPage(coreDetailsSet: true),
             ),
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(
-            'EDIT PROFILE',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+        ),
+        child: Text(
+          'EDIT PROFILE',
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
       ),
@@ -295,20 +283,6 @@ class ProfilePage extends StatelessWidget {
           ),
         );
       }).toList(),
-    );
-  }
-
-  Widget _buildEventTile(Event event) {
-    return Card(
-      color: Colors.grey[900],
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ListTile(
-        title: Text(event.title, style: const TextStyle(color: Colors.white)),
-        subtitle: Text(
-          '${event.description}\n${event.startTime != null ? 'Start: ' + event.startTime.toString().substring(0, 16) : ''}',
-          style: const TextStyle(color: Colors.white70),
-        ),
-      ),
     );
   }
 

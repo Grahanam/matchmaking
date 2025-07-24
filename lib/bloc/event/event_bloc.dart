@@ -4,7 +4,6 @@ import 'package:bloc/bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:geolocator/geolocator.dart';
 
 part 'event_event.dart';
 part 'event_state.dart';
@@ -63,21 +62,21 @@ class EventBloc extends Bloc<EventEvent, EventState> {
   }
 }
 
-  Future<void> _onFetchNearbyEvents(FetchNearbyEvents event, Emitter<EventState> emit) async {
-    emit(EventLoading());
-    try {
-      final position = await Geolocator.getCurrentPosition();
-      final events = await FirestoreService().getNearbyEvents(
-        position.latitude,
-        position.longitude,
-        radiusInKm: event.radiusInKm,
-      );
-     
-      emit(NearbyEventLoaded(events: events, position: position));
-    } catch (e) {
-      emit(EventFailure(e.toString()));
-    }
+Future<void> _onFetchNearbyEvents(FetchNearbyEvents event, Emitter<EventState> emit) async {
+  emit(EventLoading());
+  try {
+    List<Event> events = await FirestoreService().getNearbyEvents(
+      event.latitude,
+      event.longitude,
+      radiusInKm: event.radiusInKm,
+      city: event.city,
+    );
+    
+    emit(NearbyEventLoaded(events: events));
+  } catch (e) {
+    emit(EventFailure('Failed to fetch events: $e'));
   }
+}
 
   Future<void> _onFetchYourEvents(FetchYourEvents event, Emitter<EventState> emit) async {
     emit(EventLoading());

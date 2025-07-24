@@ -1,19 +1,16 @@
 import 'package:app/models/event.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:app/bloc/event/event_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import './manage_event_page.dart';
 // Import your_event_page.dart with a prefix
 import 'package:app/pages/events/your_event_page.dart' as yourEventPageStringExt;
 // You might also have manage_event_page.dart imported, potentially with a prefix too if needed elsewhere
 import 'package:app/pages/events/manage_event_page.dart' as manageEventPageStringExt;
 
 class YourEventsPage extends StatefulWidget {
-  const YourEventsPage({Key? key}) : super(key: key);
+  const YourEventsPage({super.key});
 
   @override
   State<YourEventsPage> createState() => _YourEventPageState();
@@ -150,7 +147,7 @@ class _YourEventPageState extends State<YourEventsPage> {
                   ),
                 ),
                 ...upcoming.map((event) => _buildEventCard(context, event))
-                    .toList(),
+                    ,
               ],
               if (past.isNotEmpty) ...[
                 Padding(
@@ -166,7 +163,7 @@ class _YourEventPageState extends State<YourEventsPage> {
                   ),
                 ),
                 ...past.map((event) => _buildEventCard(context, event,
-                    isPast: true)).toList(),
+                    isPast: true)),
               ],
             ],
           );

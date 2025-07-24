@@ -8,19 +8,6 @@ class AuthRepository {
   final _firestore = FirebaseFirestore.instance;
   static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  //   Future<void> _saveInitialUserData(User user, {String? name, String? photoUrl}) async {
-  //   await _firestore.collection('users').doc(user.uid).set({
-  //     'uid': user.uid,
-  //     'email': user.email,
-  //     'name': name ?? user.displayName,
-  //     'photoURL': photoUrl ?? user.photoURL,
-  //     'createdAt': FieldValue.serverTimestamp(),
-  //     'profileComplete': false,
-  //     'attendedCount': 0,
-  //     'hostedCount': 0,
-  //   });
-  // }
-
   Future<void> _saveInitialUserData(
     User user, {
     String? name,
@@ -101,7 +88,7 @@ class AuthRepository {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) return;
 
-      final GoogleSignInAuthentication? googleAuth =
+      final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       if (googleAuth == null) return;
 

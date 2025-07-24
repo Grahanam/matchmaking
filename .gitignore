@@ -10,6 +10,7 @@
 .history
 .svn/
 *.iml
+.env
 
 # Flutter/Dart related
 .dart_tool/

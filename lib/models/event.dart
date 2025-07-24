@@ -14,6 +14,10 @@ class Event {
   final String guestType;
   final String locationType;
   final int guestCount;
+  final String city;  
+  final String state;
+  final List<String> cityKeywords; 
+
   final List<String> questionnaire;
   final int applicationCount;
 
@@ -30,6 +34,9 @@ class Event {
     required this.matchingType,
     required this.guestType,
     required this.locationType,
+    required this.city,
+    required this.state,
+    required this.cityKeywords,
     required this.guestCount,
     required this.questionnaire,
     required this.applicationCount,
@@ -50,6 +57,9 @@ class Event {
       matchingType: data['matchingType'] ?? 'platonic',
       guestType: data['guestType'] ?? 'friends',
       locationType: data['locationType'] ?? 'home',
+      city: data['city'] ?? '',
+      state: data['state'] ?? '',
+      cityKeywords: List<String>.from(data['cityKeywords'] ?? []),
       guestCount: data['guestCount'] ?? 0,
       questionnaire: List<String>.from(data['questionnaire'] ?? []),
       applicationCount: data['applicationCount'] ?? 0,
@@ -71,6 +81,9 @@ class Event {
       guestType: guestType,
       locationType: locationType,
       guestCount: guestCount,
+      city:city,
+      state:state,
+      cityKeywords: cityKeywords ?? this.cityKeywords,
       questionnaire: questionnaire,
       applicationCount: applicationCount ?? this.applicationCount,
     );
@@ -89,6 +102,9 @@ class Event {
     updatedAt: (data['updatedAt'] as Timestamp).toDate(),
     matchingType: data['matchingType'] ?? 'platonic',
     guestType: data['guestType'] ?? 'friends',
+    city: data['city'] ?? '',
+    state: data['state'] ?? '',
+    cityKeywords: List<String>.from(data['cityKeywords'] ?? []),
     locationType: data['locationType'] ?? 'home',
     guestCount: data['guestCount'] ?? 0,
     questionnaire: List<String>.from(data['questionnaire'] ?? []),
@@ -112,6 +128,9 @@ class Event {
       'guestCount': guestCount,
       'questionnaire': questionnaire,
       'applicationCount': applicationCount,
+      'city':city,
+      'state':state,
+      'cityKeywords': cityKeywords,
     };
   }
 }

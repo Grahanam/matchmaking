@@ -1,17 +1,17 @@
+import 'package:app/pages/profile/user_profile_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:app/pages/chat/chat_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class UserChatListPage extends StatefulWidget {
-  const UserChatListPage({super.key});
+class MatchesPage extends StatefulWidget {
+  const MatchesPage({super.key});
 
   @override
-  State<UserChatListPage> createState() => _UserChatListPageState();
+  State<MatchesPage> createState() => _MatchesPageState();
 }
 
-class _UserChatListPageState extends State<UserChatListPage> {
+class _MatchesPageState extends State<MatchesPage> {
   final Map<String, Map<String, dynamic>> _matchedUsers = {};
   bool _loading = true;
   String? _error;
@@ -28,36 +28,30 @@ class _UserChatListPageState extends State<UserChatListPage> {
       if (user == null) return;
 
       final firestore = FirebaseFirestore.instance;
-      
-      // Query all matches where the user is involved and released=true
-      final matchesSnapshot = await firestore
-          .collectionGroup('matches')
-          .where('userId', isEqualTo: user.uid)
-          .where('released', isEqualTo: true)
-          .where('matchedWith', isNotEqualTo: '')
-          .orderBy('matchedWith')
-          .get();
 
-      // Process matches and get unique matched users
-      final matchedUserIds = matchesSnapshot.docs
-          .map((doc) => doc.data()['matchedWith'] as String)
-          .toSet();
+      // Query all matches
+      final matchesSnapshot =
+          await firestore
+              .collectionGroup('matches')
+              .where('userId', isEqualTo: user.uid)
+              .where('released', isEqualTo: true)
+              .where('matchedWith', isNotEqualTo: '')
+              .orderBy('matchedWith')
+              .get();
 
-      // Get user details for each matched user
+      // Process matches
+      final matchedUserIds =
+          matchesSnapshot.docs
+              .map((doc) => doc.data()['matchedWith'] as String)
+              .toSet();
+
+      // Get user details
+      List<Future> futures = [];
       for (final userId in matchedUserIds) {
-        final userDoc = await firestore.collection('users').doc(userId).get();
-        if (userDoc.exists) {
-          final userData = userDoc.data() ?? {};
-          
-          _matchedUsers[userId] = {
-            'name': userData['name'] ?? 'User',
-            'photoUrl': userData['photoURL'] as String? ?? '', // Safe access
-            'reason': matchesSnapshot.docs
-                .firstWhere((doc) => doc['matchedWith'] == userId)['reason'] ?? ''
-          };
-        }
+        futures.add(_fetchUserDetails(userId, matchesSnapshot));
       }
 
+      await Future.wait(futures);
       setState(() => _loading = false);
     } catch (e) {
       setState(() {
@@ -65,6 +59,32 @@ class _UserChatListPageState extends State<UserChatListPage> {
         _error = 'Failed to load matches: $e';
       });
     }
+  }
+
+  Future<void> _fetchUserDetails(
+    String userId,
+    QuerySnapshot matchesSnapshot,
+  ) async {
+    final firestore = FirebaseFirestore.instance;
+
+    // Get user details
+    final userDoc = await firestore.collection('users').doc(userId).get();
+    if (!userDoc.exists) return;
+
+    final userData = userDoc.data() ?? {};
+    final matchReason =
+        matchesSnapshot.docs.firstWhere(
+          (doc) => doc['matchedWith'] == userId,
+        )['reason'] ??
+        '';
+
+    setState(() {
+      _matchedUsers[userId] = {
+        'name': userData['name'] ?? 'User',
+        'photoUrl': userData['photoURL'] as String? ?? '',
+        'reason': matchReason,
+      };
+    });
   }
 
   @override
@@ -75,7 +95,7 @@ class _UserChatListPageState extends State<UserChatListPage> {
         backgroundColor: colorScheme.surface,
         elevation: 0,
         title: Text(
-          'Chats',
+          'Your Matches',
           style: GoogleFonts.raleway(
             fontWeight: FontWeight.bold,
             fontSize: 24,
@@ -90,18 +110,15 @@ class _UserChatListPageState extends State<UserChatListPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              colorScheme.surface,
-              colorScheme.surfaceContainerHighest,
-            ],
+            colors: [colorScheme.surface, colorScheme.surfaceContainerHighest],
           ),
         ),
-        child: _buildChatListContent(context, colorScheme),
+        child: _buildContent(context, colorScheme),
       ),
     );
   }
 
-  Widget _buildChatListContent(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildContent(BuildContext context, ColorScheme colorScheme) {
     if (_error != null) {
       return Center(
         child: Padding(
@@ -116,9 +133,7 @@ class _UserChatListPageState extends State<UserChatListPage> {
     }
 
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_matchedUsers.isEmpty) {
@@ -128,7 +143,11 @@ class _UserChatListPageState extends State<UserChatListPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.chat_bubble_outline, color: colorScheme.onSurfaceVariant, size: 64),
+              Icon(
+                Icons.people_outline,
+                color: colorScheme.onSurfaceVariant,
+                size: 64,
+              ),
               const SizedBox(height: 20),
               Text(
                 'No matches yet',
@@ -141,10 +160,8 @@ class _UserChatListPageState extends State<UserChatListPage> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Start attending events and matching to see your chats here!',
-                style: GoogleFonts.raleway(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                'Attend more events to find compatible matches!',
+                style: GoogleFonts.raleway(color: colorScheme.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -161,21 +178,32 @@ class _UserChatListPageState extends State<UserChatListPage> {
         final userId = _matchedUsers.keys.elementAt(index);
         final userData = _matchedUsers[userId]!;
         final photoUrl = userData['photoUrl'] as String?;
+
         return Card(
           elevation: 2,
           margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           color: colorScheme.surfaceContainer,
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
+            // onTap: () {
+            //   Navigator.push(
+            //     context,
+            //     MaterialPageRoute(
+            //       builder: (context) => ChatPage(
+            //         matchedUserId: userId,
+            //         matchedUserName: userData['name'],
+            //       ),
+            //     ),
+            //   );
+            // },
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ChatPage(
-                    matchedUserId: userId,
-                    matchedUserName: userData['name'],
-                  ),
+                  builder: (context) => UserProfilePage(userId: userId),
                 ),
               );
             },
@@ -187,12 +215,18 @@ class _UserChatListPageState extends State<UserChatListPage> {
                   CircleAvatar(
                     radius: 28,
                     backgroundColor: colorScheme.primary.withOpacity(0.08),
-                    backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
-                        ? NetworkImage(photoUrl)
-                        : null,
-                    child: (photoUrl == null || photoUrl.isEmpty)
-                        ? Icon(Icons.person, color: colorScheme.primary, size: 32)
-                        : null,
+                    backgroundImage:
+                        (photoUrl != null && photoUrl.isNotEmpty)
+                            ? NetworkImage(photoUrl)
+                            : null,
+                    child:
+                        (photoUrl == null || photoUrl.isEmpty)
+                            ? Icon(
+                              Icons.person,
+                              color: colorScheme.primary,
+                              size: 32,
+                            )
+                            : null,
                   ),
                   const SizedBox(width: 18),
                   Expanded(
@@ -212,7 +246,7 @@ class _UserChatListPageState extends State<UserChatListPage> {
                           userData['reason'],
                           style: GoogleFonts.raleway(
                             color: colorScheme.onSurfaceVariant,
-                            fontSize: 15,
+                            fontSize: 14,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -220,7 +254,11 @@ class _UserChatListPageState extends State<UserChatListPage> {
                       ],
                     ),
                   ),
-                  Icon(Icons.arrow_forward_ios, color: colorScheme.onSurfaceVariant, size: 20),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    color: colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
                 ],
               ),
             ),

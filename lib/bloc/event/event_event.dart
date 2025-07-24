@@ -20,10 +20,11 @@ class FetchNearbyEvents extends EventEvent {
   final double latitude;
   final double longitude;
   final double radiusInKm;
+  final String? city;   
   const FetchNearbyEvents({required this.latitude,
-    required this.longitude,required this.radiusInKm});
+    required this.longitude,required this.radiusInKm,this.city});
   @override
-  List<Object?> get props => [radiusInKm];
+  List<Object?> get props => [latitude,longitude,radiusInKm,city];
 }
 
 class FetchYourEvents extends EventEvent{
@@ -34,12 +35,14 @@ class FetchYourEvents extends EventEvent{
 class NearbyEventLoading extends EventState {}
 class NearbyEventLoaded extends EventState {
   final List<Event> events;
-  final Position position;
+  // final Position position;
   
-  const NearbyEventLoaded({required this.events, required this.position});
+  // const NearbyEventLoaded({required this.events, required this.position});
+  const NearbyEventLoaded({required this.events});
   
   @override
-  List<Object> get props => [events, position];
+  // List<Object> get props => [events, position];
+  List<Object> get props => [events];
 }
 
 class YourEventsLoaded extends EventState{
@@ -94,7 +97,7 @@ class UpdateApplicantStatus extends EventEvent {
 
 class ToggleQRCodeVisibility extends EventEvent {
   final bool show;
-  ToggleQRCodeVisibility({required this.show});
+  const ToggleQRCodeVisibility({required this.show});
 }
 
 class ResetEventState extends EventEvent {}

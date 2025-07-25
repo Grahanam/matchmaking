@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>751817212564-mbpacd02s3ufgl4vq6lbda0u75087p88.apps.googleusercontent.com</string>
+	<string>751817212564-jb6obrhum66ko8k3urs4o95kpp2if6rs.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.751817212564-mbpacd02s3ufgl4vq6lbda0u75087p88</string>
+	<string>com.googleusercontent.apps.751817212564-jb6obrhum66ko8k3urs4o95kpp2if6rs</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>751817212564-fqc8mevop2amemp76vfrie7l9c7m8lo4.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.app</string>
+	<string>com.match-box.app</string>
 	<key>PROJECT_ID</key>
 	<string>aura-4ac14</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,7 +31,7 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:751817212564:ios:d85b75dfb3dc125d4cea81</string>
+	<string>1:751817212564:ios:cdedfdf7fb9c34304cea81</string>
 	<key>DATABASE_URL</key>
 	<string>https://aura-4ac14-default-rtdb.asia-southeast1.firebasedatabase.app</string>
 </dict>

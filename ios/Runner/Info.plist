@@ -29,14 +29,14 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.751817212564-mbpacd02s3ufgl4vq6lbda0u75087p88</string>
+				<string>com.googleusercontent.apps.751817212564-jb6obrhum66ko8k3urs4o95kpp2if6rs</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>GOOGLE_CLIENT_ID</key>
-	<string>751817212564-mbpacd02s3ufgl4vq6lbda0u75087p88.apps.googleusercontent.com</string>
+	<string>751817212564-jb6obrhum66ko8k3urs4o95kpp2if6rs.apps.googleusercontent.com</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>google</string>
@@ -50,6 +50,8 @@
 	<true/>
 	<key>NSBonjourServices</key>
 	<array>
+		<string>_FlutterDartVMServicePublisher._tcp</string>
+		<string>_dartVmService._tcp</string>
 		<string>_dartobservatory._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>

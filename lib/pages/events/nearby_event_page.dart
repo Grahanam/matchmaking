@@ -74,10 +74,13 @@ class __EventListItemState extends State<_EventListItem> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => EventDetailPage(event: widget.event)),
-        ),
+        onTap:
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EventDetailPage(event: widget.event),
+              ),
+            ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -147,14 +150,16 @@ class __EventListItemState extends State<_EventListItem> {
                 child: FutureBuilder<DocumentSnapshot>(
                   future: _userFuture, // Use the state-managed future
                   builder: (context, userSnapshot) {
-                    if (userSnapshot.connectionState == ConnectionState.waiting) {
+                    if (userSnapshot.connectionState ==
+                        ConnectionState.waiting) {
                       return CircularProgressIndicator(
                         color: Colors.pinkAccent,
                         strokeWidth: 2,
                       );
                     }
 
-                    final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
+                    final userData =
+                        userSnapshot.data?.data() as Map<String, dynamic>?;
                     final name = userData?['name'] ?? 'Unknown';
                     final photoUrl = userData?['photoURL'];
 
@@ -308,121 +313,119 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
     );
   }
 
+  // void _showCountrySelector(BuildContext context) {
+  //   showModalBottomSheet(
+  //     isScrollControlled: true,
+  //     context: context,
+  //     backgroundColor: const Color(0xFF1A063A),
+  //     isDismissible: false,
+  //     builder: (context) => SizedBox(
+  //       height: MediaQuery.of(context).size.height * 0.7,
+  //       child: ShowCountryDialog(
+  //         searchHint: 'Search for a country',
+  //         substringBackground: Colors.purple[800],
+  //         style: const TextStyle(
+  //           color: Colors.white,
+  //           fontWeight: FontWeight.bold,
+  //         ),
+  //         countryHeaderStyle: const TextStyle(
+  //           color: Colors.white,
+  //           fontWeight: FontWeight.w500,
+  //         ),
+  //         searchStyle: const TextStyle(color: Colors.white),
+  //         subStringStyle: const TextStyle(color: Colors.white),
+  //         selectedCountryBackgroundColor: Colors.pink,
+  //         notSelectedCountryBackgroundColor: const Color(0xFF2D0B5A),
+  //         onSelectCountry: () {
+  //           // Get the selected value immediately
+  //           final selectedValue = Selected.country;
+  //           // Close ONLY the modal
+  //           WidgetsBinding.instance.addPostFrameCallback((_) {
+  //             setState(() {
+  //               selectedCountry = selectedValue;
+  //               selectedState = null;
+  //               selectedCity = null;
+  //             });
+  //           });
+  //         },
+  //       ),
+  //     ),
+  //   );
+  // }
 
-// void _showCountrySelector(BuildContext context) {
-//   showModalBottomSheet(
-//     isScrollControlled: true,
-//     context: context,
-//     backgroundColor: const Color(0xFF1A063A),
-//     isDismissible: false,
-//     builder: (context) => SizedBox(
-//       height: MediaQuery.of(context).size.height * 0.7,
-//       child: ShowCountryDialog(
-//         searchHint: 'Search for a country',
-//         substringBackground: Colors.purple[800],
-//         style: const TextStyle(
-//           color: Colors.white,
-//           fontWeight: FontWeight.bold,
-//         ),
-//         countryHeaderStyle: const TextStyle(
-//           color: Colors.white,
-//           fontWeight: FontWeight.w500,
-//         ),
-//         searchStyle: const TextStyle(color: Colors.white),
-//         subStringStyle: const TextStyle(color: Colors.white),
-//         selectedCountryBackgroundColor: Colors.pink,
-//         notSelectedCountryBackgroundColor: const Color(0xFF2D0B5A),
-//         onSelectCountry: () {
-//           // Get the selected value immediately
-//           final selectedValue = Selected.country;
-//           // Close ONLY the modal
-//           WidgetsBinding.instance.addPostFrameCallback((_) {
-//             setState(() {
-//               selectedCountry = selectedValue;
-//               selectedState = null;
-//               selectedCity = null;
-//             });
-//           });
-//         },
-//       ),
-//     ),
-//   );
-// }
+  // void _showStateSelector(BuildContext context) {
 
-// void _showStateSelector(BuildContext context) {
-  
-//   showModalBottomSheet(
-//     isScrollControlled: true,
-//     context: context,
-//     backgroundColor: const Color(0xFF1A063A),
-//     isDismissible: false,
-//     builder: (context) => SizedBox(
-//       height: MediaQuery.of(context).size.height * 0.7,
-//       child: ShowStateDialog(
-//         style: const TextStyle(
-//           color: Colors.white,
-//           fontWeight: FontWeight.w500,
-//         ),
-//         stateHeaderStyle: const TextStyle(
-//           color: Colors.white,
-//           fontWeight: FontWeight.bold,
-//         ),
-//         subStringStyle: const TextStyle(color: Colors.white),
-//         substringBackground: Colors.purple[800],
-//         selectedStateBackgroundColor: Colors.pink,
-//         notSelectedStateBackgroundColor: const Color(0xFF2D0B5A),
-//         onSelectedState: () {
-//           // Get the selected value immediately
-//           final selectedValue = Selected.state;
-          
-//           // Update the state using the root navigator
-//           WidgetsBinding.instance.addPostFrameCallback((_) {
-//             setState(() {
-//               selectedState = selectedValue;
-//               selectedCity = null;
-//             });
-//           });
-//         },
-//       ),
-//     ),
-//   );
-// }
+  //   showModalBottomSheet(
+  //     isScrollControlled: true,
+  //     context: context,
+  //     backgroundColor: const Color(0xFF1A063A),
+  //     isDismissible: false,
+  //     builder: (context) => SizedBox(
+  //       height: MediaQuery.of(context).size.height * 0.7,
+  //       child: ShowStateDialog(
+  //         style: const TextStyle(
+  //           color: Colors.white,
+  //           fontWeight: FontWeight.w500,
+  //         ),
+  //         stateHeaderStyle: const TextStyle(
+  //           color: Colors.white,
+  //           fontWeight: FontWeight.bold,
+  //         ),
+  //         subStringStyle: const TextStyle(color: Colors.white),
+  //         substringBackground: Colors.purple[800],
+  //         selectedStateBackgroundColor: Colors.pink,
+  //         notSelectedStateBackgroundColor: const Color(0xFF2D0B5A),
+  //         onSelectedState: () {
+  //           // Get the selected value immediately
+  //           final selectedValue = Selected.state;
 
-// void _showCitySelector(BuildContext context) {
+  //           // Update the state using the root navigator
+  //           WidgetsBinding.instance.addPostFrameCallback((_) {
+  //             setState(() {
+  //               selectedState = selectedValue;
+  //               selectedCity = null;
+  //             });
+  //           });
+  //         },
+  //       ),
+  //     ),
+  //   );
+  // }
 
-//   showModalBottomSheet(
-//     isScrollControlled: true,
-//     context: context,
-//     backgroundColor: const Color(0xFF1A063A),
-//     isDismissible: false,
-//     builder: (context) => SizedBox(
-//       height: MediaQuery.of(context).size.height * 0.7,
-//       child: ShowCityDialog(
-//         style: const TextStyle(
-//           color: Colors.white,
-//           fontWeight: FontWeight.w500,
-//         ),
-//         subStringStyle: const TextStyle(color: Colors.white),
-//         substringBackground: Colors.purple[800],
-//         selectedCityBackgroundColor: Colors.pink,
-//         notSelectedCityBackgroundColor: const Color(0xFF2D0B5A),
-//         onSelectedCity: () {
-//           // Get the selected value immediately
-//           final selectedValue = Selected.city;
-          
-//           // Update the state using the root navigator
-//           WidgetsBinding.instance.addPostFrameCallback((_) {
-//             setState(() {
-//               selectedCity = selectedValue;
-//             });
-//             _loadEvents();
-//           });
-//         },
-//       ),
-//     ),
-//   );
-// }
+  // void _showCitySelector(BuildContext context) {
 
+  //   showModalBottomSheet(
+  //     isScrollControlled: true,
+  //     context: context,
+  //     backgroundColor: const Color(0xFF1A063A),
+  //     isDismissible: false,
+  //     builder: (context) => SizedBox(
+  //       height: MediaQuery.of(context).size.height * 0.7,
+  //       child: ShowCityDialog(
+  //         style: const TextStyle(
+  //           color: Colors.white,
+  //           fontWeight: FontWeight.w500,
+  //         ),
+  //         subStringStyle: const TextStyle(color: Colors.white),
+  //         substringBackground: Colors.purple[800],
+  //         selectedCityBackgroundColor: Colors.pink,
+  //         notSelectedCityBackgroundColor: const Color(0xFF2D0B5A),
+  //         onSelectedCity: () {
+  //           // Get the selected value immediately
+  //           final selectedValue = Selected.city;
+
+  //           // Update the state using the root navigator
+  //           WidgetsBinding.instance.addPostFrameCallback((_) {
+  //             setState(() {
+  //               selectedCity = selectedValue;
+  //             });
+  //             _loadEvents();
+  //           });
+  //         },
+  //       ),
+  //     ),
+  //   );
+  // }
 
   // void _clearFilters() {
   //   setState(() {
@@ -434,12 +437,12 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
   // }
 
   void _clearFilters() {
-  setState(() {
-    selectedCity = null;
-    _cityController.clear();
-  });
-  _loadEvents();
-}
+    setState(() {
+      selectedCity = null;
+      _cityController.clear();
+    });
+    _loadEvents();
+  }
 
   // void _loadEvents() {
   //   if (selectedCity != null || _currentPosition != null) {
@@ -462,23 +465,23 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
   // }
 
   void _loadEvents() {
-  if (selectedCity != null || _currentPosition != null) {
-    final lat = selectedCity == null ? _currentPosition?.latitude : null;
-    final lon = selectedCity == null ? _currentPosition?.longitude : null;
-    
-    // Only load if we have either a city or location
-    if (selectedCity != null || (lat != null && lon != null)) {
-      context.read<EventBloc>().add(
-        FetchNearbyEvents(
-          latitude: lat ?? 0.0,
-          longitude: lon ?? 0.0,
-          radiusInKm: _searchRadius,
-          city: selectedCity,
-        ),
-      );
+    if (selectedCity != null || _currentPosition != null) {
+      final lat = selectedCity == null ? _currentPosition?.latitude : null;
+      final lon = selectedCity == null ? _currentPosition?.longitude : null;
+
+      // Only load if we have either a city or location
+      if (selectedCity != null || (lat != null && lon != null)) {
+        context.read<EventBloc>().add(
+          FetchNearbyEvents(
+            latitude: lat ?? 0.0,
+            longitude: lon ?? 0.0,
+            radiusInKm: _searchRadius,
+            city: selectedCity,
+          ),
+        );
+      }
     }
   }
-}
 
   // void _clearFilters() {
   //   setState(() {
@@ -531,333 +534,338 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
     );
   }
 
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    backgroundColor: Colors.black,
-    appBar: AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
-      ),
-      title: Text(
-        "Nearby Events",
-        style: GoogleFonts.poppins(
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-          fontSize: 22,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          "Nearby Events",
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            fontSize: 22,
+          ),
         ),
       ),
-    ),
-    body: BlocConsumer<EventBloc, EventState>(
-      listener: (context, state) {
-        if (state is EventFailure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.error),
-              backgroundColor: Colors.pinkAccent,
-            ),
-          );
-        }
-      },
-      builder: (context, state) {
-        if (_isCheckingLocation) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.pinkAccent),
-          );
-        }
+      body: BlocConsumer<EventBloc, EventState>(
+        listener: (context, state) {
+          if (state is EventFailure) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.error),
+                backgroundColor: Colors.pinkAccent,
+              ),
+            );
+          }
+        },
+        builder: (context, state) {
+          if (_isCheckingLocation) {
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.pinkAccent),
+            );
+          }
 
-        if (!_locationServiceEnabled || _locationError != null) {
-          return _buildLocationError();
-        }
+          if (!_locationServiceEnabled || _locationError != null) {
+            return _buildLocationError();
+          }
 
-        return Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF0F0B21), Colors.black],
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF0F0B21), Colors.black],
+              ),
             ),
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Search Radius Card
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF1A063A), Color(0xFF2D0B5A)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.purple.withOpacity(0.3),
-                                blurRadius: 15,
-                                offset: const Offset(0, 5),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Search Radius Card
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF1A063A), Color(0xFF2D0B5A)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                            ],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.purple.withOpacity(0.3),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "Search radius:",
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                    Text(
+                                      "${_searchRadius.toInt()} km",
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.pinkAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Slider(
+                                  min: 1,
+                                  max: 50,
+                                  divisions: 10,
+                                  value: _searchRadius,
+                                  activeColor: Colors.pinkAccent,
+                                  inactiveColor: Colors.purple.shade800,
+                                  thumbColor: Colors.white,
+                                  onChanged:
+                                      (val) =>
+                                          setState(() => _searchRadius = val),
+                                ),
+                              ],
+                            ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    "Search radius:",
+                          const SizedBox(height: 16),
+
+                          _buildSearchFilters(),
+                          const SizedBox(height: 16),
+
+                          // Refresh Button
+                          ElevatedButton(
+                            onPressed: _loadEvents,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.pinkAccent,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              minimumSize: const Size(double.infinity, 50),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: Text(
+                              "Refresh Events",
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Map Section
+                          if (_currentPosition != null &&
+                              state is NearbyEventLoaded)
+                            _buildMap(context, _currentPosition!, state),
+                          const SizedBox(height: 16),
+
+                          // Events Header
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    "Date",
                                     style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight: FontWeight.bold,
                                       color: Colors.white70,
                                     ),
                                   ),
-                                  Text(
-                                    "${_searchRadius.toInt()} km",
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    "Event Name",
                                     style: GoogleFonts.poppins(
-                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.pinkAccent,
+                                      color: Colors.white70,
                                     ),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Slider(
-                                min: 1,
-                                max: 50,
-                                divisions: 10,
-                                value: _searchRadius,
-                                activeColor: Colors.pinkAccent,
-                                inactiveColor: Colors.purple.shade800,
-                                thumbColor: Colors.white,
-                                onChanged:
-                                    (val) => setState(() => _searchRadius = val),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                
-                        _buildSearchFilters(),
-                        const SizedBox(height: 16),
-                        
-                        // Refresh Button
-                        ElevatedButton(
-                          onPressed: _loadEvents,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.pinkAccent,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            minimumSize: const Size(double.infinity, 50),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: Text(
-                            "Refresh Events",
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    "Host",
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ),
+                                const Expanded(flex: 1, child: SizedBox()),
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                
-                        // Map Section
-                        if (_currentPosition != null && state is NearbyEventLoaded)
-                          _buildMap(context, _currentPosition!, state),
-                        const SizedBox(height: 16),
-                
-                        // Events Header
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: Text(
-                                  "Date",
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  "Event Name",
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 2,
-                                child: Text(
-                                  "Host",
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ),
-                              const Expanded(flex: 1, child: SizedBox()),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                
-                        // Events List
-                        _buildEventsList(context, state),
-                      ],
+                          const SizedBox(height: 8),
+
+                          // Events List
+                          _buildEventsList(context, state),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSearchFilters() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A063A), Color(0xFF2D0B5A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Search Filters",
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white70,
+                ),
+              ),
+              if (selectedCity != null)
+                TextButton(
+                  onPressed: _clearFilters,
+                  child: Text(
+                    "Clear filter",
+                    style: GoogleFonts.poppins(
+                      color: Colors.pinkAccent,
+                      fontSize: 14,
                     ),
                   ),
                 ),
-              );
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // City Search Input
+          Text(
+            "Search by City:",
+            style: GoogleFonts.poppins(fontSize: 14, color: Colors.white70),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _cityController,
+            style: GoogleFonts.poppins(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Enter city name',
+              hintStyle: GoogleFonts.poppins(color: Colors.white54),
+              filled: true,
+              fillColor: Colors.black.withOpacity(0.3),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              suffixIcon:
+                  _cityController.text.isNotEmpty
+                      ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.white70),
+                        onPressed: () {
+                          _cityController.clear();
+                          setState(() {
+                            selectedCity = null;
+                          });
+                        },
+                      )
+                      : null,
+            ),
+            onChanged: (value) {
+              setState(() {
+                selectedCity = value.isNotEmpty ? value : null;
+              });
             },
           ),
-        );
-      },
-    ),
-  );
-}
-
-Widget _buildSearchFilters() {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(20),
-      gradient: const LinearGradient(
-        colors: [Color(0xFF1A063A), Color(0xFF2D0B5A)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.purple.withOpacity(0.3),
-          blurRadius: 15,
-          offset: const Offset(0, 5),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              "Search Filters",
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: () {
+              if (_cityController.text.isNotEmpty) {
+                _loadEvents();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.pinkAccent,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              "Search Events",
               style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.white70,
               ),
             ),
-            if (selectedCity != null)
-              TextButton(
-                onPressed: _clearFilters,
-                child: Text(
-                  "Clear filter",
-                  style: GoogleFonts.poppins(
-                    color: Colors.pinkAccent,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // City Search Input
-        Text(
-          "Search by City:",
-          style: GoogleFonts.poppins(fontSize: 14, color: Colors.white70),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _cityController,
-          style: GoogleFonts.poppins(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Enter city name',
-            hintStyle: GoogleFonts.poppins(color: Colors.white54),
-            filled: true,
-            fillColor: Colors.black.withOpacity(0.3),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            suffixIcon: _cityController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.white70),
-                    onPressed: () {
-                      _cityController.clear();
-                      setState(() {
-                        selectedCity = null;
-                      });
-                    },
-                  )
-                : null,
           ),
-          onChanged: (value) {
-            setState(() {
-              selectedCity = value.isNotEmpty ? value : null;
-            });
-          },
-        ),
-        const SizedBox(height: 8),
-        ElevatedButton(
-           onPressed: () {
-            if (_cityController.text.isNotEmpty) {
-              _loadEvents();
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.pinkAccent,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-          ),
-         
-        ),
-           child: Text(
-            "Search Events",
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-        )
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   // Widget _buildSearchFilters() {
   //   return Container(
@@ -984,120 +992,164 @@ Widget _buildSearchFilters() {
   //   );
   // }
 
-  Widget _buildMap(
-    BuildContext context,
-    Position position,
-    NearbyEventLoaded state,
-  ) {
-    // Calculate bounds to fit all markers
-    LatLngBounds? bounds;
-    if (state.events.isNotEmpty) {
-      bounds = LatLngBounds.fromPoints([
-        LatLng(position.latitude, position.longitude),
-        ...state.events.map(
-          (e) => LatLng(e.location.latitude, e.location.longitude),
-        ),
-      ]);
-    }
+ Widget _buildMap(
+  BuildContext context,
+  Position position,
+  NearbyEventLoaded state,
+) {
+  // --- Robust Bounds Calculation ---
+  LatLngBounds? safeBounds;
+  LatLng effectiveCenter = LatLng(position.latitude, position.longitude); // Default center
+  double effectiveZoom = 13.0; // Default zoom
 
-    return Container(
-  constraints: BoxConstraints(
-    maxHeight: 250,
-    minHeight: 250,
-  ),
-  decoration: BoxDecoration(
-    borderRadius: BorderRadius.circular(20),
-    boxShadow: [
-      BoxShadow(
-        color: Color.fromRGBO(128, 0, 128, 0.3),
-        blurRadius: 15,
-        offset: const Offset(0, 5),
-      ),
-    ],
-  ),
-  child: ClipRRect(
-    borderRadius: BorderRadius.circular(20),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        return FlutterMap(
-          options: MapOptions(
-            initialCenter:
-                bounds?.center ?? LatLng(position.latitude, position.longitude),
-            initialZoom: bounds != null ? 10 : 13,
-            initialCameraFit:
-                bounds != null
-                    ? CameraFit.bounds(
-                      bounds: bounds,
-                      padding: const EdgeInsets.all(50),
-                    )
-                    : null,
+  // Only attempt bounds calculation if there are events
+  if (state.events.isNotEmpty) {
+    List<LatLng> allPoints = [
+      LatLng(position.latitude, position.longitude), // User location
+      ...state.events.map((e) => LatLng(e.location.latitude, e.location.longitude)),
+    ];
+
+    // Check for edge case: all points are identical
+    bool allPointsIdentical = allPoints.every((point) =>
+        point.latitude == allPoints[0].latitude &&
+        point.longitude == allPoints[0].longitude);
+
+    if (!allPointsIdentical) {
+      try {
+        safeBounds = LatLngBounds.fromPoints(allPoints);
+
+        // Validate the bounds (check for NaN/Infinity in center or span)
+        if (!safeBounds.center.latitude.isNaN &&
+            !safeBounds.center.longitude.isNaN &&
+         
+            !safeBounds.center.latitude.isInfinite &&
+            !safeBounds.center.longitude.isInfinite
+           ) {
+
+          effectiveCenter = safeBounds.center;
+          // Decide on zoom: If bounds are valid, we'll use CameraFit.bounds
+          // A default zoom is still needed as a fallback or initial value.
+          // 13 is a reasonable default for showing a city area.
+          effectiveZoom = 13.0;
+        } else {
+          // If bounds calculation resulted in invalid numbers, log and fallback
+          print("Warning: LatLngBounds calculation resulted in NaN/Infinity. Falling back to user location.");
+          safeBounds = null; // Ensure bounds aren't used
+        }
+      } catch (e) {
+        // If LatLngBounds.fromPoints throws (e.g., due to identical points causing division by zero)
+        print("LatLngBounds calculation error: $e. Falling back to user location.");
+        safeBounds = null; // Ensure bounds aren't used
+      }
+    } else {
+      // All points are the same, cannot calculate meaningful bounds
+      print("All marker points are identical. Cannot fit bounds. Showing default view.");
+      safeBounds = null; // Ensure bounds aren't used
+    }
+  } else {
+    // No events, just show user location
+    safeBounds = null;
+  }
+
+  // --- Map Widget ---
+  return Container(
+    constraints: const BoxConstraints(maxHeight: 250, minHeight: 250),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(
+          color: const Color.fromRGBO(128, 0, 128, 0.3),
+          blurRadius: 15,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: FlutterMap(
+        options: MapOptions(
+          // Provide a valid initial center and zoom to prevent TileLayer errors
+          initialCenter: effectiveCenter, // Guaranteed to be valid
+          initialZoom: effectiveZoom,     // Guaranteed to be valid
+          // Only use initialCameraFit if we have valid bounds
+          // This will override initialCenter/Zoom once calculated
+          initialCameraFit: safeBounds != null
+              ? CameraFit.bounds(
+                  bounds: safeBounds!,
+                  padding: const EdgeInsets.all(50.0),
+                )
+              : null,
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+            // Add error handling for tiles - important!
+            // Make sure NetworkTileProvider is imported from flutter_map
+            tileProvider: NetworkTileProvider(),
+            // Optional: Add errorBuilder for better tile loading UX
+            // errorBuilder: (context, error, stackTrace) {
+            //   return Container(color: Colors.grey.shade300); // Placeholder for failed tiles
+            // },
           ),
-          children: [
-            TileLayer(
-              urlTemplate: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
-              userAgentPackageName: 'com.example.app',
-            ),
-            CircleLayer(
-              circles: [
-                CircleMarker(
-                  point: LatLng(position.latitude, position.longitude),
-                  radius: _searchRadius * 1000,
-                  useRadiusInMeter: true,
-                  color: Color.fromRGBO(255, 64, 129, 0.2),
-                  borderColor: Colors.pinkAccent,
-                  borderStrokeWidth: 2,
+          CircleLayer(
+            circles: [
+              CircleMarker(
+                point: LatLng(position.latitude, position.longitude),
+                radius: _searchRadius * 1000,
+                useRadiusInMeter: true,
+                color: const Color.fromRGBO(255, 64, 129, 0.2),
+                borderColor: Colors.pinkAccent,
+                borderStrokeWidth: 2,
+              ),
+            ],
+          ),
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: LatLng(position.latitude, position.longitude),
+                width: 40,
+                height: 40,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.pinkAccent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Icon(
+                    Icons.person_pin_circle,
+                    color: Colors.white,
+                  ),
                 ),
-              ],
-            ),
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: LatLng(position.latitude, position.longitude),
-                  width: 40,
-                  height: 40,
+              ),
+              ...state.events.map(
+                (event) => Marker(
+                  point: LatLng(
+                    event.location.latitude,
+                    event.location.longitude,
+                  ),
+                  width: 30,
+                  height: 30,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.pinkAccent,
+                      color: Colors.purple,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
                     child: const Icon(
-                      Icons.person_pin_circle,
+                      Icons.event,
+                      size: 16,
                       color: Colors.white,
                     ),
                   ),
                 ),
-                ...state.events.map(
-                  (event) => Marker(
-                    point: LatLng(
-                      event.location.latitude,
-                      event.location.longitude,
-                    ),
-                    width: 30,
-                    height: 30,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.purple,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: const Icon(
-                        Icons.event,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
+              ),
+            ],
+          ),
+        ],
+      ),
     ),
-  ),
-);
-  }
+  );
+}
   // Widget _buildMap(
   //   BuildContext context,
   //   Position position,
@@ -1197,59 +1249,55 @@ Widget _buildSearchFilters() {
   //   );
   // }
 
-
-Widget _buildEventsList(BuildContext context, EventState state) {
-  if (state is NearbyEventLoading) {
-    return const SizedBox(
-      height: 200,
-      child: Center(
-        child: CircularProgressIndicator(color: Colors.pinkAccent),
-      ),
-    );
-  } else if (state is NearbyEventLoaded) {
-    if (state.events.isEmpty) {
+  Widget _buildEventsList(BuildContext context, EventState state) {
+    if (state is NearbyEventLoading) {
+      return const SizedBox(
+        height: 200,
+        child: Center(
+          child: CircularProgressIndicator(color: Colors.pinkAccent),
+        ),
+      );
+    } else if (state is NearbyEventLoaded) {
+      if (state.events.isEmpty) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Center(
+            child: Text(
+              "No nearby events found",
+              style: GoogleFonts.poppins(color: Colors.white70, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      }
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: state.events.length,
+        itemBuilder: (context, index) {
+          final event = state.events[index];
+          return _EventListItem(event: event);
+        },
+      );
+    } else if (state is EventFailure) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 40),
         child: Center(
           child: Text(
-            "No nearby events found",
-            style: GoogleFonts.poppins(
-              color: Colors.white70, 
-              fontSize: 16
-            ),
-            textAlign: TextAlign.center,
+            "Error: ${state.error}",
+            style: GoogleFonts.poppins(color: Colors.pinkAccent),
           ),
         ),
       );
     }
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: state.events.length,
-      itemBuilder: (context, index) {
-        final event = state.events[index];
-        return _EventListItem(event: event);
-      },
-    );
-  } else if (state is EventFailure) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Center(
         child: Text(
-          "Error: ${state.error}",
-          style: GoogleFonts.poppins(color: Colors.pinkAccent),
+          "Search for events",
+          style: GoogleFonts.poppins(color: Colors.white70),
         ),
       ),
     );
   }
-  return Container(
-    padding: const EdgeInsets.symmetric(vertical: 40),
-    child: Center(
-      child: Text(
-        "Search for events",
-        style: GoogleFonts.poppins(color: Colors.white70),
-      ),
-    ),
-  );
-}
 }

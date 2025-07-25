@@ -16,8 +16,8 @@ import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:app/services/firestore_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-  String get geminiApiKey => dotenv.env['GEMINI_API_TOKEN'] ?? '';
-  String get _aiApiToken => dotenv.env['AI_API_TOKEN'] ?? '';
+String get geminiApiKey => dotenv.env['GEMINI_API_TOKEN'] ?? '';
+String get _aiApiToken => dotenv.env['AI_API_TOKEN'] ?? '';
 const String _aiApiEndpoint =
     'https://models.github.ai/inference/chat/completions';
 
@@ -231,20 +231,130 @@ class _CreateEventPageState extends State<CreateEventPage> {
   }
 
   // Add this new method to get current location
+  // Future<void> _getCurrentLocation() async {
+  //   try {
+  //     final position = await Geolocator.getCurrentPosition();
+  //     setState(() {
+  //       _currentPosition = position;
+  //       // if (_selectedLocation == null) {
+  //       _selectedLocation ??= LatLng(position.latitude, position.longitude);
+  //       // }
+  //     });
+  //   } catch (e) {
+  //     debugPrint('Error getting location: $e');
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text('Failed to get location: ${e.toString()}')),
+  //     );
+  //   }
+  // }
+
   Future<void> _getCurrentLocation() async {
     try {
-      final position = await Geolocator.getCurrentPosition();
-      setState(() {
-        _currentPosition = position;
-        // if (_selectedLocation == null) {
-        _selectedLocation ??= LatLng(position.latitude, position.longitude);
-        // }
-      });
+      // 1. Check current permission status
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      // 2. Handle different permission states
+      if (permission == LocationPermission.denied) {
+        // Permission was denied previously, request it again
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          // Permission denied again
+          if (mounted) {
+            // Check if the widget is still mounted
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Location permissions denied. Please enable location access in settings.',
+                ),
+                backgroundColor: Colors.orange, // Or your preferred color
+              ),
+            );
+          }
+          return; // Stop execution if permission is denied
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        // Permission denied permanently, open app settings
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Location permissions permanently denied. Please enable location access in app settings.',
+              ),
+              backgroundColor: Colors.red, // Or your preferred color
+            ),
+          );
+          // Optionally, open settings directly
+          // await Geolocator.openAppSettings();
+        }
+        return; // Stop execution if permission is denied forever
+      }
+
+      // 3. If permission is granted (either initially or after request)
+      if (permission == LocationPermission.whileInUse ||
+          permission == LocationPermission.always) {
+        // Check if location services are enabled
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Location services are disabled. Please enable location services.',
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          // Optionally, prompt to open location settings
+          // await Geolocator.openLocationSettings();
+          return;
+        }
+
+        // 4. Now, get the current position
+        final position = await Geolocator.getCurrentPosition();
+
+        // 5. Update the state with the new position
+        if (mounted) {
+          // Crucial check before calling setState
+          setState(() {
+            _currentPosition = position;
+            // Only set _selectedLocation if it hasn't been set yet, or always update it?
+            // Based on your logic, it seems you want to update it to the current location.
+            // If you only want to set it the first time, use _selectedLocation ??=
+            _selectedLocation = LatLng(position.latitude, position.longitude);
+            latController.text = position.latitude.toString();
+            lngController.text = position.longitude.toString();
+          });
+          // Perform reverse geocoding after setting the location
+          await _reverseGeocode(_selectedLocation!);
+          // Optionally, move the map if it's visible
+          // if (_isMapVisible) {
+          //   _mapController.move(_selectedLocation!, 15.0); // Adjust zoom as needed
+          // }
+        }
+      }
     } catch (e) {
       debugPrint('Error getting location: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to get location: ${e.toString()}')),
-      );
+      // Provide user feedback on any other errors
+      if (mounted) {
+        String errorMessage = 'Failed to get location.';
+        // Check the type of exception
+        if (e is LocationServiceDisabledException) {
+          errorMessage = 'Location services are disabled.';
+        }
+        // The geolocator plugin indicates permanent denial through the
+        // return value of checkPermission/requestPermission, not an exception.
+        // We can check the type of 'e' for PermissionDeniedException if the package defines it,
+        // but often the denial status is handled in the permission check logic itself.
+        // Let's simplify the message for catch-all errors.
+        // If you specifically want to distinguish denial types, handle it in the permission check part.
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(errorMessage)));
+      }
     }
   }
 
@@ -652,7 +762,8 @@ Return response in JSON format with these keys:
 }
 """;
 
-      final geminiApiEndpoint ='https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$geminiApiKey';
+      final geminiApiEndpoint =
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$geminiApiKey';
 
       final response = await http.post(
         Uri.parse(geminiApiEndpoint),
@@ -1560,28 +1671,47 @@ Return response in JSON format with these keys:
                               final city = _city ?? '';
                               final state = _state ?? '';
 
-                              // Split into lowercase keyword list
-                              // final cityKeywords =
-                              //     {
-                              //       ...city.toLowerCase().split(' '),
-                              //       ...state.toLowerCase().split(' '),
-                              //       city.toLowerCase(),
-                              //       state.toLowerCase(),
-                              //     }.toList();
-
                               final cityKeywords =
-                                  {
-                                        _city?.toLowerCase().trim(),
-                                        _state?.toLowerCase().trim(),
-                                        _city?.trim(),
-                                        _state?.trim(),
-                                        '${_city ?? ''}, ${_state ?? ''}'
-                                            .toLowerCase()
-                                            .trim(),
-                                      }
-                                      .where((e) => e != null && e.isNotEmpty)
-                                      .cast<String>()
-                                      .toList();
+                                  <String>{
+                                    // --- Full Names ---
+                                    if (_city != null && _city!.isNotEmpty) ...[
+                                      _city!.toLowerCase().trim(),
+                                      _city!.trim(),
+                                    ],
+                                    if (_state != null &&
+                                        _state!.isNotEmpty) ...[
+                                      _state!.toLowerCase().trim(),
+                                      _state!.trim(),
+                                    ],
+                                    if (_city != null &&
+                                        _state != null &&
+                                        _city!.isNotEmpty &&
+                                        _state!.isNotEmpty) ...[
+                                      '${_city!.toLowerCase().trim()}, ${_state!.toLowerCase().trim()}',
+                                      '${_city!.trim()}, ${_state!.trim()}',
+                                    ],
+                                    // --- Individual Words ---
+                                    // Split city name into words (by space or hyphen) and add lowercase versions
+                                    if (_city != null && _city!.isNotEmpty)
+                                      ..._city!
+                                          .split(RegExp(r'[\s\-]+'))
+                                          .where(
+                                            (word) => word.trim().isNotEmpty,
+                                          )
+                                          .map(
+                                            (word) => word.trim().toLowerCase(),
+                                          ),
+                                    // Split state name into words (by space or hyphen) and add lowercase versions
+                                    if (_state != null && _state!.isNotEmpty)
+                                      ..._state!
+                                          .split(RegExp(r'[\s\-]+'))
+                                          .where(
+                                            (word) => word.trim().isNotEmpty,
+                                          )
+                                          .map(
+                                            (word) => word.trim().toLowerCase(),
+                                          ),
+                                  }.where((e) => e.isNotEmpty).toSet().toList();
                               final eventData = {
                                 'title': titleController.text,
                                 'description': descController.text,

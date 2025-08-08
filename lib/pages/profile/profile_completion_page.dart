@@ -91,12 +91,12 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
     super.dispose();
   }
 
-   Future<bool> _validateImageUrl(String url) async {
+  Future<bool> _validateImageUrl(String url) async {
     if (url.isEmpty) return true;
-    
+
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.isAbsolute) return false;
-    
+
     // Check if URL looks like an image
     if (uri.pathSegments.isNotEmpty) {
       final lastSegment = uri.pathSegments.last.toLowerCase();
@@ -106,14 +106,14 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
         if (imageExtensions.contains(ext)) return true;
       }
     }
-    
+
     // Check by downloading image headers
     try {
       setState(() => _isCheckingImage = true);
       final response = await http.head(uri);
-      
+
       if (response.statusCode != 200) return false;
-      
+
       final contentType = response.headers['content-type']?.toLowerCase() ?? '';
       return contentType.startsWith('image/');
     } catch (e) {
@@ -131,10 +131,10 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
       });
       return;
     }
-    
+
     final isValid = await _validateImageUrl(_photoUrlController.text);
     setState(() => _isValidImageUrl = isValid);
-    
+
     if (isValid) {
       try {
         final response = await http.get(Uri.parse(_photoUrlController.text));
@@ -170,17 +170,17 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-     if (_photoUrlController.text.isNotEmpty) {
-    final isValid = await _validateImageUrl(_photoUrlController.text);
-    setState(() => _isValidImageUrl = isValid);
-    
-    if (!isValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid image URL')),
-      );
-      return;
+    if (_photoUrlController.text.isNotEmpty) {
+      final isValid = await _validateImageUrl(_photoUrlController.text);
+      setState(() => _isValidImageUrl = isValid);
+
+      if (!isValid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid image URL')),
+        );
+        return;
+      }
     }
-  }
 
     final profileData = <String, dynamic>{
       'updatedAt': FieldValue.serverTimestamp(),
@@ -234,7 +234,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
         );
       } else {
         // For existing users editing profile, just pop
-        Navigator.pop(context,true);
+        Navigator.pop(context, true);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -300,38 +300,42 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
-  controller: _photoUrlController,
-  decoration: InputDecoration(
-    labelText: 'Profile Photo URL',
-    prefixIcon: const Icon(Icons.link),
-    helperText: 'Enter a direct image URL',
-    errorText: _isValidImageUrl ? null : 'Invalid image URL',
-    suffixIcon: _isCheckingImage
-        ? const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        : null,
-  ),
-  keyboardType: TextInputType.url,
-  onChanged: (value) => _loadPreview(),
-),
-const SizedBox(height: 16),
+                          controller: _photoUrlController,
+                          decoration: InputDecoration(
+                            labelText: 'Profile Photo URL',
+                            prefixIcon: const Icon(Icons.link),
+                            helperText: 'Enter a direct image URL',
+                            errorText:
+                                _isValidImageUrl ? null : 'Invalid image URL',
+                            suffixIcon:
+                                _isCheckingImage
+                                    ? const Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : null,
+                          ),
+                          keyboardType: TextInputType.url,
+                          onChanged: (value) => _loadPreview(),
+                        ),
+                        const SizedBox(height: 16),
 
-// Image preview
-if (_imageBytes != null)
-  Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.memory(
-        _imageBytes!,
-        height: 150,
-        width: double.infinity,
-        fit: BoxFit.cover,
-      ),
-    ),
-  ),
+                        // Image preview
+                        if (_imageBytes != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                _imageBytes!,
+                                height: 150,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
                         const SizedBox(height: 16),
 
                         // Introduction field (always editable)

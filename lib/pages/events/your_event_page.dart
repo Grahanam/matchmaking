@@ -17,7 +17,6 @@ class YourEventsPage extends StatefulWidget {
 }
 
 class _YourEventPageState extends State<YourEventsPage> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   User? currentUser;
 
    @override
@@ -196,7 +195,7 @@ Widget _buildEventCard(BuildContext context, Event event, {bool isPast = false})
         color: const Color(0xFF1C1C1E), // Dark background
         boxShadow: [
           BoxShadow(
-            color: Colors.purple.withOpacity(0.2),
+            color: Colors.purple.withValues(alpha: 0.2),
             blurRadius: 10,
             spreadRadius: 2,
             offset: const Offset(0, 5),
@@ -265,7 +264,7 @@ Widget _buildEventCard(BuildContext context, Event event, {bool isPast = false})
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.orange.withOpacity(0.2),
+          color: Colors.orange.withValues(alpha:0.2),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.orange),
         ),
@@ -305,7 +304,7 @@ Widget _buildEventCard(BuildContext context, Event event, {bool isPast = false})
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(

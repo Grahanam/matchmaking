@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/event.dart';
 import '../models/eventapplication.dart';
 import '../models/chat.dart';
+import 'package:flutter/foundation.dart';
 
 class FirestoreService {
   final _db = FirebaseFirestore.instance;
@@ -226,10 +227,10 @@ class FirestoreService {
       List<Event> events =
           snapshot.docs.map((doc) => Event.fromDocumentSnapshot(doc)).toList();
 
-      print("Queried by city: $city");
-      for (var event in events) {
-        print(event);
-      }
+      // print("Queried by city: $city");
+      // for (var event in events) {
+      //   print(event);
+      // }
       return events;
     }
 
@@ -251,10 +252,10 @@ class FirestoreService {
           }).toList();
     }
 
-    print("Queried by location near: ($userLat, $userLng)");
-    for (var event in events) {
-      print(event);
-    }
+    // print("Queried by location near: ($userLat, $userLng)");
+    // for (var event in events) {
+    //   print(event);
+    // }
     return events;
   }
 
@@ -335,7 +336,7 @@ class FirestoreService {
       }
       return {'isCheckedIn': false};
     } catch (e) {
-      print('Error fetching check-in status: $e');
+      debugPrint('Error fetching check-in status: $e');
       return {'isCheckedIn': false};
     }
   }

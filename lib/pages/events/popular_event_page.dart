@@ -82,7 +82,7 @@ class _PopularEventsPageState extends State<PopularEventsPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.2),
+        color: Colors.orange.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.orange),
       ),
@@ -214,14 +214,6 @@ class _PopularEventsPageState extends State<PopularEventsPage> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildImagePlaceholder() {
-    return Container(
-      height: 180,
-      color: Colors.grey[200],
-      child: const Center(child: Icon(Icons.event, size: 60, color: Colors.grey)),
     );
   }
 

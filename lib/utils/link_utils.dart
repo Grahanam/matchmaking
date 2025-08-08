@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class LinkUtils {
   // Expand maps.app.goo.gl link
@@ -13,9 +14,9 @@ class LinkUtils {
           HttpHeaders.userAgentHeader: 'Mozilla/5.0',
         },
       );
-      print('Resolved URL: ${response.request?.url}');
+      debugPrint('Resolved URL: ${response.request?.url}');
       final resolvedUrl = response.request?.url.toString();
-      print('$resolvedUrl');
+      debugPrint('$resolvedUrl');
       return resolvedUrl;
     } catch (e) {
       return null;

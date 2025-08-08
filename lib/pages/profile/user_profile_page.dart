@@ -1,3 +1,4 @@
+import 'package:app/pages/chat/chat_page.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -79,6 +80,7 @@ class UserProfilePage extends StatelessWidget {
                   Image.network(
                     photoUrl,
                     fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
                     width: double.infinity,
                     height: double.infinity,
                   ),
@@ -91,7 +93,7 @@ class UserProfilePage extends StatelessWidget {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withOpacity(0.7)
+                        Colors.black.withValues(alpha: 0.7)
                       ],
                     ),
                   ),
@@ -213,7 +215,14 @@ class UserProfilePage extends StatelessWidget {
         icon: const Icon(Icons.message),
         label: const Text('Send Message'),
         onPressed: () {
-          // Implement message functionality
+          Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) =>
+                ChatPage(matchedUserId: userId, matchedUserName: name),
+      ),
+    );
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.purple,

@@ -1,5 +1,4 @@
 import 'package:app/bloc/event/event_bloc.dart';
-import 'package:app/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -10,10 +9,7 @@ import './event_detail_page.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_typeahead/flutter_typeahead.dart';
-import 'package:flutter_country_state/flutter_country_state.dart';
-import 'package:flutter_country_state/city_screen.dart';
-import 'package:flutter_country_state/state_screen.dart';
+
 
 // Step 1: Convert the widget to StatefulWidget
 class _EventListItem extends StatefulWidget {
@@ -66,7 +62,7 @@ class __EventListItemState extends State<_EventListItem> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.purple.withOpacity(0.2),
+            color: Colors.purple.withValues(alpha: 0.2),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -608,7 +604,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.purple.withOpacity(0.3),
+                                  color: Colors.purple.withValues(alpha: 0.2),
                                   blurRadius: 15,
                                   offset: const Offset(0, 5),
                                 ),
@@ -695,7 +691,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
                               vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Row(
@@ -763,7 +759,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.purple.withOpacity(0.3),
+            color: Colors.purple.withValues(alpha: 0.3),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -811,7 +807,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
               hintText: 'Enter city name',
               hintStyle: GoogleFonts.poppins(color: Colors.white54),
               filled: true,
-              fillColor: Colors.black.withOpacity(0.3),
+              fillColor: Colors.black.withValues(alpha:0.3),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -879,7 +875,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
   //       ),
   //       boxShadow: [
   //         BoxShadow(
-  //           color: Colors.purple.withOpacity(0.3),
+  //           color: Colors.purple.withValues(alpha:0.3),
   //           blurRadius: 15,
   //           offset: const Offset(0, 5),
   //         ),
@@ -925,7 +921,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
   //         ElevatedButton(
   //           onPressed: () => _showCountrySelector(context),
   //           style: ElevatedButton.styleFrom(
-  //             backgroundColor: Colors.black.withOpacity(0.3),
+  //             backgroundColor: Colors.black.withValues(alpha:0.3),
   //             foregroundColor: Colors.white,
   //             minimumSize: const Size(double.infinity, 50),
   //             shape: RoundedRectangleBorder(
@@ -951,7 +947,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
   //                   ? () => _showStateSelector(context)
   //                   : null,
   //           style: ElevatedButton.styleFrom(
-  //             backgroundColor: Colors.black.withOpacity(0.3),
+  //             backgroundColor: Colors.black.withValues(alpha:0.3),
   //             foregroundColor: Colors.white,
   //             minimumSize: const Size(double.infinity, 50),
   //             shape: RoundedRectangleBorder(
@@ -975,7 +971,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
   //           onPressed:
   //               selectedState != null ? () => _showCitySelector(context) : null,
   //           style: ElevatedButton.styleFrom(
-  //             backgroundColor: Colors.black.withOpacity(0.3),
+  //             backgroundColor: Colors.black.withValues(alpha:0.3),
   //             foregroundColor: Colors.white,
   //             minimumSize: const Size(double.infinity, 50),
   //             shape: RoundedRectangleBorder(
@@ -1033,17 +1029,17 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
           effectiveZoom = 13.0;
         } else {
           // If bounds calculation resulted in invalid numbers, log and fallback
-          print("Warning: LatLngBounds calculation resulted in NaN/Infinity. Falling back to user location.");
+          debugPrint("Warning: LatLngBounds calculation resulted in NaN/Infinity. Falling back to user location.");
           safeBounds = null; // Ensure bounds aren't used
         }
       } catch (e) {
         // If LatLngBounds.fromPoints throws (e.g., due to identical points causing division by zero)
-        print("LatLngBounds calculation error: $e. Falling back to user location.");
+        debugPrint("LatLngBounds calculation error: $e. Falling back to user location.");
         safeBounds = null; // Ensure bounds aren't used
       }
     } else {
       // All points are the same, cannot calculate meaningful bounds
-      print("All marker points are identical. Cannot fit bounds. Showing default view.");
+      debugPrint("All marker points are identical. Cannot fit bounds. Showing default view.");
       safeBounds = null; // Ensure bounds aren't used
     }
   } else {
@@ -1075,7 +1071,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
           // This will override initialCenter/Zoom once calculated
           initialCameraFit: safeBounds != null
               ? CameraFit.bounds(
-                  bounds: safeBounds!,
+                  bounds: safeBounds,
                   padding: const EdgeInsets.all(50.0),
                 )
               : null,
@@ -1169,7 +1165,7 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
   //       borderRadius: BorderRadius.circular(20),
   //       boxShadow: [
   //         BoxShadow(
-  //           color: Colors.purple.withOpacity(0.3),
+  //           color: Colors.purple.withValues(alpha:0.3),
   //           blurRadius: 15,
   //           offset: const Offset(0, 5),
   //         ),

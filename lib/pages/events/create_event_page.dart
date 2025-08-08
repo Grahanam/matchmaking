@@ -13,13 +13,12 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_typeahead/flutter_typeahead.dart';
-import 'package:app/services/firestore_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 String get geminiApiKey => dotenv.env['GEMINI_API_TOKEN'] ?? '';
-String get _aiApiToken => dotenv.env['AI_API_TOKEN'] ?? '';
-const String _aiApiEndpoint =
-    'https://models.github.ai/inference/chat/completions';
+// String get _aiApiToken => dotenv.env['AI_API_TOKEN'] ?? '';
+// const String _aiApiEndpoint =
+//     'https://models.github.ai/inference/chat/completions';
 
 class LocationSuggestion {
   final String displayName;
@@ -50,7 +49,6 @@ class _CreateEventPageState extends State<CreateEventPage> {
   final _searchController = TextEditingController();
   final MapController _mapController = MapController();
   List<LocationSuggestion> _locationSuggestions = [];
-  final bool _isSearching = false;
 
   int? guestCount;
 
@@ -62,7 +60,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
   final List<int> guestOptions = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   LatLng? _selectedLocation;
   bool _isMapVisible = false;
-  bool _hostParticipates = false;
+  final bool _hostParticipates = false;
   Position? _currentPosition;
   String? _city;
   String? _state;
@@ -203,7 +201,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final address = data['address'] as Map<String, dynamic>?;
-        print(address);
+        // print(address);
         if (address != null) {
           setState(() {
             // Different regions use different keys for city/state

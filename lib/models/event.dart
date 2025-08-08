@@ -83,7 +83,7 @@ class Event {
       guestCount: guestCount,
       city:city,
       state:state,
-      cityKeywords: cityKeywords ?? this.cityKeywords,
+      cityKeywords: cityKeywords,
       questionnaire: questionnaire,
       applicationCount: applicationCount ?? this.applicationCount,
     );

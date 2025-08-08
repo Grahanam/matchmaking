@@ -6,6 +6,7 @@ import 'package:app/pages/events/your_event_page.dart';
 import 'package:app/pages/match/match_page.dart';
 import 'package:app/pages/profile/profile_page.dart';
 import 'package:app/pages/questions/create_question_page.dart';
+import 'package:app/widgets/bottom_navbar_widget.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -84,7 +85,7 @@ class _HomeState extends State<Home> {
         }
       }
     } catch (e) {
-      print('Error fetching user profile: $e');
+      debugPrint('Error fetching user profile: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -203,12 +204,14 @@ class _HomeState extends State<Home> {
                           Colors.orange.shade600,
                           Colors.orange.shade400,
                         ],
-                         onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const PopularEventsPage()),
-    );
-  },
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PopularEventsPage(),
+                            ),
+                          );
+                        },
                         imageUrl:
                             "https://images.unsplash.com/photo-1702144949391-e905ba8d36dc?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTh8fHBhcnR5JTIwaG9zdHxlbnwwfHwwfHx8MA%3D%3D",
                       ),
@@ -237,14 +240,15 @@ class _HomeState extends State<Home> {
             ),
           ),
         ),
-        bottomNavigationBar: _buildModernBottomNavBar(),
+        // bottomNavigationBar: _buildModernBottomNavBar(),
+        bottomNavigationBar: BottomNavbarWidget(),
       ),
     );
   }
 
   // NEW: Modern Header Design
   Widget _buildModernHeader(BuildContext context, String name) {
-    final user = FirebaseAuth.instance.currentUser;
+    // final user = FirebaseAuth.instance.currentUser;
     return Stack(
       children: [
         // Vibrant gradient background
@@ -271,7 +275,7 @@ class _HomeState extends State<Home> {
         Positioned.fill(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(color: Colors.black.withOpacity(0.15)),
+            child: Container(color: Colors.black.withValues(alpha: 0.15)),
           ),
         ),
         // Content
@@ -301,7 +305,7 @@ class _HomeState extends State<Home> {
                         'Find your perfect match, or your next adventure.',
                         style: GoogleFonts.poppins(
                           fontSize: 15,
-                          color: Colors.white.withOpacity(0.85),
+                          color: Colors.white.withValues(alpha: 0.85),
                           fontWeight: FontWeight.w400,
                         ),
                       ),
@@ -416,7 +420,7 @@ class _HomeState extends State<Home> {
           width: 60,
           height: 60,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             shape: BoxShape.circle,
             border: Border.all(color: color, width: 2),
           ),
@@ -492,7 +496,7 @@ class _HomeState extends State<Home> {
                   : null,
           boxShadow: [
             BoxShadow(
-              color: gradientColors.first.withOpacity(0.18),
+              color: gradientColors.first.withValues(alpha: 0.18),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -508,7 +512,7 @@ class _HomeState extends State<Home> {
                     borderRadius: BorderRadius.circular(20),
                     gradient: LinearGradient(
                       colors: [
-                        Colors.black.withOpacity(0.5),
+                        Colors.black.withValues(alpha: 0.5),
                         Colors.transparent,
                       ],
                       begin: Alignment.bottomCenter,
@@ -529,7 +533,7 @@ class _HomeState extends State<Home> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(icon, color: Colors.white),
@@ -547,7 +551,7 @@ class _HomeState extends State<Home> {
                   Text(
                     "Find your perfect match",
                     style: GoogleFonts.poppins(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 12,
                     ),
                   ),
@@ -583,7 +587,7 @@ class _HomeState extends State<Home> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             blurRadius: 10,
             spreadRadius: 5,
           ),
@@ -605,7 +609,7 @@ class _HomeState extends State<Home> {
                 decoration: BoxDecoration(
                   color:
                       _selectedIndex == 0
-                          ? Colors.purple.withOpacity(0.15)
+                          ? Colors.purple.withValues(alpha: 0.15)
                           : Colors.transparent,
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -625,7 +629,7 @@ class _HomeState extends State<Home> {
                 decoration: BoxDecoration(
                   color:
                       _selectedIndex == 1
-                          ? Colors.purple.withOpacity(0.15)
+                          ? Colors.purple.withValues(alpha: 0.15)
                           : Colors.transparent,
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -652,7 +656,7 @@ class _HomeState extends State<Home> {
                   }
                   return CircleAvatar(
                     radius: 16,
-                    backgroundColor: Colors.white.withOpacity(0.2),
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
                     backgroundImage:
                         (photoUrl != null && photoUrl.isNotEmpty)
                             ? NetworkImage(photoUrl)
@@ -805,7 +809,7 @@ class _HomeState extends State<Home> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.purple.withOpacity(0.18),
+                color: Colors.purple.withValues(alpha: 0.18),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -816,7 +820,7 @@ class _HomeState extends State<Home> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.event, color: Colors.white, size: 36),
@@ -838,7 +842,7 @@ class _HomeState extends State<Home> {
                     Text(
                       "Bring people together, make new friends, or find your perfect match. Start your own event now!",
                       style: GoogleFonts.poppins(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 14,
                       ),
                     ),
@@ -922,7 +926,7 @@ class _AutoVenueSliderState extends State<_AutoVenueSlider> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.purple.withOpacity(0.18),
+                  color: Colors.purple.withValues(alpha: 0.18),
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                 ),
@@ -942,7 +946,7 @@ class _AutoVenueSliderState extends State<_AutoVenueSlider> {
                       ),
                       gradient: LinearGradient(
                         colors: [
-                          Colors.black.withOpacity(0.7),
+                          Colors.black.withValues(alpha: 0.7),
                           Colors.transparent,
                         ],
                         begin: Alignment.bottomCenter,

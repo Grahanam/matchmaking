@@ -124,7 +124,7 @@ class ProfilePage extends StatelessWidget {
                         child: Icon(
                           Icons.person,
                           size: 100,
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                         ),
                       ),
                     ),

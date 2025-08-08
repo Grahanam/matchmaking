@@ -412,7 +412,7 @@ Now create a question based on the user's request:
 
   Future<void> _submitQuestion() async {
     if (!_formKey.currentState!.validate()) {
-      print('[WARNING] Form validation failed');
+      debugPrint('[WARNING] Form validation failed');
       return;
     }
 
@@ -448,7 +448,7 @@ Now create a question based on the user's request:
         userId: user.uid, // Add user ID for custom questions
       );
 
-      print('[DEBUG] Question object: $question');
+     debugPrint('[DEBUG] Question object: $question');
 
       if (widget.existingQuestion != null) {
         await FirebaseFirestore.instance
@@ -764,8 +764,6 @@ Now create a question based on the user's request:
         return 'Ranking';
       case QuestionType.multiSelect:
         return 'Multi-Select';
-      default:
-        return type.name;
     }
   }
 
@@ -781,8 +779,6 @@ Now create a question based on the user's request:
         return 'Relationship Goals';
       case QuestionCategory.dealbreakers:
         return 'Dealbreakers';
-      default:
-        return category.name;
     }
   }
 

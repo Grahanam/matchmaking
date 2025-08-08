@@ -39,8 +39,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
   bool _isCheckedIn = false;
   Map<String, dynamic>? _existingAnswers;
   DocumentSnapshot? _matchData;
-  String?
-  _matchedUserName; 
+  String? _matchedUserName; 
   bool _eventHasStarted = false;
   DateTime? _checkInTime;
   Group? _userGroup;
@@ -154,18 +153,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
     });
   }
 
-  Future<void> _saveMatchAnalysis(
-    String eventId,
-    String userId,
-    Map<String, dynamic> data,
-  ) async {
-    await FirebaseFirestore.instance
-        .collection('match_analysis')
-        .doc(eventId)
-        .collection('reports')
-        .doc(userId)
-        .set(data);
-  }
 
   void _setupListeners() {
     final eventId = widget.event.id;
@@ -683,7 +670,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
   }
 
   Widget _buildGroupSection() {
-    print(_userGroup);
     if (_userGroup == null) {
       return const SizedBox.shrink();
     }
@@ -733,7 +719,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   horizontal: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: Colors.blue),
                 ),
@@ -1025,7 +1011,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
               ),
@@ -1091,7 +1077,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: Colors.green.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -1220,7 +1206,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -1410,7 +1396,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
               ),
@@ -1617,7 +1603,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return CircleAvatar(
                     radius: 52,
-                    backgroundColor: Colors.pinkAccent.withOpacity(0.2),
+                    backgroundColor: Colors.pinkAccent.withValues(alpha: 0.2),
                     child: const CircularProgressIndicator(
                       color: Colors.pinkAccent,
                     ),
@@ -1640,7 +1626,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   children: [
                     CircleAvatar(
                       radius: 52,
-                      backgroundColor: Colors.pinkAccent.withOpacity(0.2),
+                      backgroundColor: Colors.pinkAccent.withValues(alpha: 0.2),
                       backgroundImage:
                           (photoURL != null && photoURL.isNotEmpty)
                               ? NetworkImage(photoURL)
@@ -1704,9 +1690,9 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.pinkAccent.withOpacity(0.1),
+                color: Colors.pinkAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.pinkAccent.withOpacity(0.3)),
+                border: Border.all(color: Colors.pinkAccent.withValues(alpha:0.3)),
               ),
               child: Column(
                 children: [
@@ -1754,7 +1740,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
     return ElevatedButton.icon(
       icon: Icon(
         icon,
-        color: currentIconColor.withOpacity(isEnabled ? 1.0 : 0.7),
+        color: currentIconColor.withValues(alpha:isEnabled ? 1.0 : 0.7),
       ),
       label: Text(
         label,
@@ -2062,7 +2048,8 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
 
       if (userAnswer == null || matchAnswer == null) continue;
 
-      final category = (question.category ?? 'general').toString();
+      // final category = (question.category ?? 'general').toString();
+      final category = question.category.toString();
 
       // Initialize category data
       categoryScores.putIfAbsent(category, () => 0.0);
@@ -2116,7 +2103,8 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
     for (final category in categoryScores.keys) {
       final questionsInCategory =
           questions
-              .where((q) => (q.category ?? 'general').toString() == category)
+              // .where((q) => (q.category ?? 'general').toString() == category)
+              .where((q) => q.category.toString() == category)
               .length;
       if (questionsInCategory > 0) {
         categoryScores[category] =
@@ -2260,33 +2248,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
     }).toList();
   }
 
-  Widget _buildStatCard(String value, String label) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.raleway(color: Colors.grey[700], fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<Map<String, dynamic>> _fetchMatchAnalysisData() async {
     final userId = FirebaseAuth.instance.currentUser!.uid;
     final eventId = widget.event.id;
@@ -2425,69 +2386,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
         'personality': random.nextInt(40) + 60,
       },
     };
-  }
-
-  // Add this helper widget
-  Widget _buildCategoryScoreRow(String category, double score) {
-    String displayName;
-    IconData icon;
-
-    switch (category) {
-      case 'dealbreakers':
-        displayName = "Core Values";
-        icon = Icons.gpp_good_outlined;
-        break;
-      case 'interests':
-        displayName = "Interests";
-        icon = Icons.interests_outlined;
-        break;
-      case 'goals':
-        displayName = "Life Goals";
-        icon = Icons.flag_outlined;
-        break;
-      case 'coreValues':
-        displayName = "Beliefs";
-        icon = Icons.psychology_outlined;
-        break;
-      case 'personality':
-        displayName = "Personality";
-        icon = Icons.person_outline;
-        break;
-      default:
-        displayName = category;
-        icon = Icons.category_outlined;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Colors.grey[400]),
-          const SizedBox(width: 12),
-          Expanded(child: Text(displayName, style: GoogleFonts.raleway())),
-          SizedBox(
-            width: 60,
-            child: Text(
-              "${score.toStringAsFixed(0)}%",
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-            ),
-          ),
-          SizedBox(
-            width: 120,
-            child: LinearProgressIndicator(
-              value: score / 100,
-              backgroundColor: Colors.grey[800],
-              color:
-                  score > 75
-                      ? Colors.greenAccent
-                      : score > 50
-                      ? Colors.orangeAccent
-                      : Colors.redAccent,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildEventHeader() {

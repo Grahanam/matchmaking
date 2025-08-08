@@ -34,8 +34,8 @@ class _ManageEventPageState extends State<ManageEventPage> {
   StreamSubscription? _checkinSubscription;
   String get _aiApiToken => dotenv.env['AI_API_TOKEN'] ?? '';
 
-  static const String _aiApiEndpoint =
-      'https://models.github.ai/inference/chat/completions';
+  // static const String _aiApiEndpoint =
+  //     'https://models.github.ai/inference/chat/completions';
 
   // Section visibility states
   bool _showCheckinsList = false;
@@ -95,8 +95,6 @@ class _ManageEventPageState extends State<ManageEventPage> {
             .docs
             .map((doc) => doc['userId'] as String)
             .toList();
-
-    print(userIds);
 
     // Fetch feedback for the event
     final feedbackDocs =
@@ -1267,7 +1265,7 @@ Format output STRICTLY as:
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -1953,7 +1951,7 @@ Format output STRICTLY as:
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: statusColor.withOpacity(0.2),
+                                      color: statusColor.withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: DropdownButton<String>(
@@ -2069,7 +2067,7 @@ Format output STRICTLY as:
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 10,
                         spreadRadius: 2,
                       ),
@@ -2246,7 +2244,7 @@ Format output STRICTLY as:
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    // final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -2295,7 +2293,6 @@ Format output STRICTLY as:
 
           if (state is EventWithApplicantsLoaded) {
             final event = state.event;
-            final applicants = state.applicants;
 
             return RefreshIndicator(
               onRefresh: () async {

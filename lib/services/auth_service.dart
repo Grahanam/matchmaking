@@ -21,7 +21,7 @@ class AuthService {
         password: password
       );
 
-      print('$credential');
+      debugPrint('$credential');
 
       await Future.delayed(const Duration(seconds: 1));
       Navigator.pushReplacement(
@@ -48,7 +48,7 @@ class AuthService {
       );
     }
     catch(e,stack){
- print('Sign-in error: $e\n$stack');
+ debugPrint('Sign-in error: $e\n$stack');
     }
 
   }
@@ -88,7 +88,7 @@ class AuthService {
     );
   }
   catch(e,stack){
-    print('Sign-in error: $e\n$stack');
+    debugPrint('Sign-in error: $e\n$stack');
     Fluttertoast.showToast(
       msg: 'An unexpected error occurred',
       toastLength: Toast.LENGTH_LONG,
@@ -131,7 +131,7 @@ Future<void> googleauth({
     final email = user.email;                    // Email
     final photoUrl = user.photoUrl;              // Profile picture URL
 
-    print('$user');
+    debugPrint('$user');
 
 
     final GoogleSignInAuthentication userAuth = await user.authentication;
@@ -183,7 +183,7 @@ Future<void> googleauth({
       );
     }
   } catch (e, stack) {
-    print('Google sign-in failed: $e\n$stack');
+    debugPrint('Google sign-in failed: $e\n$stack');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Google sign-in failed: ${e.toString()}')),
     );

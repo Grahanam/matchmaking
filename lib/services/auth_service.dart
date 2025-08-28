@@ -1,3 +1,5 @@
+import 'package:app/pages/layout/main_layout.dart';
+import 'package:app/pages/profile/profile_completion_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -27,7 +29,7 @@ class AuthService {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (BuildContext context) => const Home()
+          builder: (BuildContext context) => const MainLayout()
         )
       );
       
@@ -66,7 +68,7 @@ class AuthService {
     // Only navigate on successful login
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const Home())
+      MaterialPageRoute(builder: (context) => const MainLayout())
     );
   } on FirebaseAuthException catch(e) {
     String message = '';
@@ -174,14 +176,24 @@ Future<void> googleauth({
           .collection('users')
           .doc(uid)
           .set(userData);
+
+     if (context.mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ProfileCompletionPage()),
+        );
+      }
+      
+    }else{
+      if (context.mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const MainLayout()),
+        );
+      }
     }
    
-    if (FirebaseAuth.instance.currentUser != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const Home()),
-      );
-    }
+    
   } catch (e, stack) {
     debugPrint('Google sign-in failed: $e\n$stack');
     ScaffoldMessenger.of(context).showSnackBar(

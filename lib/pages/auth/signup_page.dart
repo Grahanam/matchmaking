@@ -1,5 +1,7 @@
 import 'package:app/bloc/auth/auth_bloc.dart';
 import 'package:app/pages/home/home.dart';
+import 'package:app/pages/layout/main_layout.dart';
+import 'package:app/pages/profile/profile_completion_page.dart';
 import 'package:email_validator/email_validator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -44,7 +46,7 @@ class _SignUpState extends State<SignUp> {
               if (state is Authenticated) {
                 // Navigating to the dashboard screen if the user is authenticated
                 Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const Home()),
+                  MaterialPageRoute(builder: (context) => const ProfileCompletionPage()),
                 );
               }
               if (state is AuthError) {

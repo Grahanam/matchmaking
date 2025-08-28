@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:app/bloc/event/event_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -10,8 +11,6 @@ import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-
-// Step 1: Convert the widget to StatefulWidget
 class _EventListItem extends StatefulWidget {
   final Event event;
 
@@ -212,7 +211,7 @@ class NearbyEventsPage extends StatefulWidget {
 }
 
 class _NearbyEventsPageState extends State<NearbyEventsPage> {
-  double _searchRadius = 20;
+  double _searchRadius = 10;
   Position? _currentPosition;
   bool _locationServiceEnabled = false;
   bool _isCheckingLocation = false;
@@ -220,13 +219,38 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
   String? selectedCountry;
   String? selectedState;
   String? selectedCity;
+  final ScrollController _scrollController = ScrollController();
+  late final ValueNotifier<bool> _scrolledNotifier;
 
   final TextEditingController _cityController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _scrolledNotifier = ValueNotifier<bool>(false);
+    _scrollController.addListener(_scrollListener);
     _initializeLocation();
+  }
+
+  void _scrollListener() {
+    if (!_scrollController.hasClients)
+      return; // Check if controller is still attached
+
+    final isScrolled = _scrollController.offset > 50;
+    if (_scrolledNotifier.hasListeners &&
+        isScrolled != _scrolledNotifier.value) {
+      _scrolledNotifier.value = isScrolled;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_scrollController.hasListeners) {
+      _scrollController.removeListener(_scrollListener);
+    }
+    _scrollController.dispose();
+    _scrolledNotifier.dispose();
+    super.dispose();
   }
 
   Future<void> _initializeLocation() async {
@@ -309,129 +333,6 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
     );
   }
 
-  // void _showCountrySelector(BuildContext context) {
-  //   showModalBottomSheet(
-  //     isScrollControlled: true,
-  //     context: context,
-  //     backgroundColor: const Color(0xFF1A063A),
-  //     isDismissible: false,
-  //     builder: (context) => SizedBox(
-  //       height: MediaQuery.of(context).size.height * 0.7,
-  //       child: ShowCountryDialog(
-  //         searchHint: 'Search for a country',
-  //         substringBackground: Colors.purple[800],
-  //         style: const TextStyle(
-  //           color: Colors.white,
-  //           fontWeight: FontWeight.bold,
-  //         ),
-  //         countryHeaderStyle: const TextStyle(
-  //           color: Colors.white,
-  //           fontWeight: FontWeight.w500,
-  //         ),
-  //         searchStyle: const TextStyle(color: Colors.white),
-  //         subStringStyle: const TextStyle(color: Colors.white),
-  //         selectedCountryBackgroundColor: Colors.pink,
-  //         notSelectedCountryBackgroundColor: const Color(0xFF2D0B5A),
-  //         onSelectCountry: () {
-  //           // Get the selected value immediately
-  //           final selectedValue = Selected.country;
-  //           // Close ONLY the modal
-  //           WidgetsBinding.instance.addPostFrameCallback((_) {
-  //             setState(() {
-  //               selectedCountry = selectedValue;
-  //               selectedState = null;
-  //               selectedCity = null;
-  //             });
-  //           });
-  //         },
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // void _showStateSelector(BuildContext context) {
-
-  //   showModalBottomSheet(
-  //     isScrollControlled: true,
-  //     context: context,
-  //     backgroundColor: const Color(0xFF1A063A),
-  //     isDismissible: false,
-  //     builder: (context) => SizedBox(
-  //       height: MediaQuery.of(context).size.height * 0.7,
-  //       child: ShowStateDialog(
-  //         style: const TextStyle(
-  //           color: Colors.white,
-  //           fontWeight: FontWeight.w500,
-  //         ),
-  //         stateHeaderStyle: const TextStyle(
-  //           color: Colors.white,
-  //           fontWeight: FontWeight.bold,
-  //         ),
-  //         subStringStyle: const TextStyle(color: Colors.white),
-  //         substringBackground: Colors.purple[800],
-  //         selectedStateBackgroundColor: Colors.pink,
-  //         notSelectedStateBackgroundColor: const Color(0xFF2D0B5A),
-  //         onSelectedState: () {
-  //           // Get the selected value immediately
-  //           final selectedValue = Selected.state;
-
-  //           // Update the state using the root navigator
-  //           WidgetsBinding.instance.addPostFrameCallback((_) {
-  //             setState(() {
-  //               selectedState = selectedValue;
-  //               selectedCity = null;
-  //             });
-  //           });
-  //         },
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // void _showCitySelector(BuildContext context) {
-
-  //   showModalBottomSheet(
-  //     isScrollControlled: true,
-  //     context: context,
-  //     backgroundColor: const Color(0xFF1A063A),
-  //     isDismissible: false,
-  //     builder: (context) => SizedBox(
-  //       height: MediaQuery.of(context).size.height * 0.7,
-  //       child: ShowCityDialog(
-  //         style: const TextStyle(
-  //           color: Colors.white,
-  //           fontWeight: FontWeight.w500,
-  //         ),
-  //         subStringStyle: const TextStyle(color: Colors.white),
-  //         substringBackground: Colors.purple[800],
-  //         selectedCityBackgroundColor: Colors.pink,
-  //         notSelectedCityBackgroundColor: const Color(0xFF2D0B5A),
-  //         onSelectedCity: () {
-  //           // Get the selected value immediately
-  //           final selectedValue = Selected.city;
-
-  //           // Update the state using the root navigator
-  //           WidgetsBinding.instance.addPostFrameCallback((_) {
-  //             setState(() {
-  //               selectedCity = selectedValue;
-  //             });
-  //             _loadEvents();
-  //           });
-  //         },
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // void _clearFilters() {
-  //   setState(() {
-  //     selectedCountry = null;
-  //     selectedState = null;
-  //     selectedCity = null;
-  //   });
-  //   _loadEvents();
-  // }
-
   void _clearFilters() {
     setState(() {
       selectedCity = null;
@@ -439,26 +340,6 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
     });
     _loadEvents();
   }
-
-  // void _loadEvents() {
-  //   if (selectedCity != null || _currentPosition != null) {
-  //     final lat = selectedCity == null ? _currentPosition?.latitude : null;
-  //     final lon = selectedCity == null ? _currentPosition?.longitude : null;
-
-  //     if (selectedCity != null || (lat != null && lon != null)) {
-  //       context.read<EventBloc>().add(
-  //         FetchNearbyEvents(
-  //           latitude: lat ?? 0.0,
-  //           longitude: lon ?? 0.0,
-  //           radiusInKm: _searchRadius,
-  //           city: selectedCity,
-  //         ),
-  //       );
-  //     } else {
-  //       print("Location or city is not available.");
-  //     }
-  //   }
-  // }
 
   void _loadEvents() {
     if (selectedCity != null || _currentPosition != null) {
@@ -478,26 +359,6 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
       }
     }
   }
-
-  // void _clearFilters() {
-  //   setState(() {
-  //     _selectedCity = null;
-  //     _cityController.clear();
-  //   });
-  //   _loadEvents();
-  // }
-
-  // void _loadEvents() async {
-  //   if (_currentPosition != null) {
-  //     context.read<EventBloc>().add(
-  //       FetchNearbyEvents(
-  //         latitude: _currentPosition!.latitude,
-  //         longitude: _currentPosition!.longitude,
-  //         radiusInKm: _searchRadius,
-  //       ),
-  //     );
-  //   }
-  // }
 
   Widget _buildLocationError() {
     return Center(
@@ -533,21 +394,35 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: Text(
-          "Nearby Events",
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: 22,
-          ),
+          "Explore Events",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 22),
+        ),
+        flexibleSpace: ValueListenableBuilder<bool>(
+          valueListenable: _scrolledNotifier,
+          builder: (context, isScrolled, child) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              decoration: BoxDecoration(
+                gradient:
+                    isScrolled
+                        ? const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.pinkAccent,
+                            Colors.purple,
+                            Colors.deepPurple,
+                          ],
+                        )
+                        : null,
+              ),
+            );
+          },
         ),
       ),
       body: BlocConsumer<EventBloc, EventState>(
@@ -573,168 +448,42 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
           }
 
           return Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF0F0B21), Colors.black],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  ui.Color.fromARGB(100, 255, 249, 136),
+                  ui.Color.fromARGB(100, 158, 126, 249),
+                  ui.Color.fromARGB(100, 104, 222, 245),
+                ],
               ),
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                return SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Search Radius Card
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF1A063A), Color(0xFF2D0B5A)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.purple.withValues(alpha: 0.2),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Search radius:",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white70,
-                                      ),
-                                    ),
-                                    Text(
-                                      "${_searchRadius.toInt()} km",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.pinkAccent,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Slider(
-                                  min: 1,
-                                  max: 50,
-                                  divisions: 10,
-                                  value: _searchRadius,
-                                  activeColor: Colors.pinkAccent,
-                                  inactiveColor: Colors.purple.shade800,
-                                  thumbColor: Colors.white,
-                                  onChanged:
-                                      (val) =>
-                                          setState(() => _searchRadius = val),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          _buildSearchFilters(),
-                          const SizedBox(height: 16),
-
-                          // Refresh Button
-                          ElevatedButton(
-                            onPressed: _loadEvents,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.pinkAccent,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              minimumSize: const Size(double.infinity, 50),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                            child: Text(
-                              "Refresh Events",
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Map Section
-                          if (_currentPosition != null &&
-                              state is NearbyEventLoaded)
-                            _buildMap(context, _currentPosition!, state),
-                          const SizedBox(height: 16),
-
-                          // Events Header
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    "Date",
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    "Event Name",
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    "Host",
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                ),
-                                const Expanded(flex: 1, child: SizedBox()),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-
-                          // Events List
-                          _buildEventsList(context, state),
-                        ],
+                return SafeArea(
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildSearchFilters(),
+                            const SizedBox(height: 16),
+                            // Map Section
+                            if (_currentPosition != null &&
+                                state is NearbyEventLoaded)
+                              _buildMap(context, _currentPosition!, state),
+                            const SizedBox(height: 10),
+                            // Events List
+                            _buildEventsList(context, state),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -772,478 +521,300 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Search Filters",
+                "Search Events Around You",
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: Colors.white70,
                 ),
               ),
-              if (selectedCity != null)
-                TextButton(
-                  onPressed: _clearFilters,
-                  child: Text(
-                    "Clear filter",
-                    style: GoogleFonts.poppins(
-                      color: Colors.pinkAccent,
-                      fontSize: 14,
-                    ),
-                  ),
+              Text(
+                "${_searchRadius.toInt()} km",
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.pinkAccent,
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          Slider(
+            min: 1,
+            max: 50,
+            divisions: 10,
+            value: _searchRadius,
+            activeColor: Colors.pinkAccent,
+            inactiveColor: Colors.purple.shade800,
+            thumbColor: Colors.white,
+            onChanged: (val) => setState(() => _searchRadius = val),
+          ),
+          // Row(
+          //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          //   children: [
+          // Text(
+          //   "Search Filters",
+          //   style: GoogleFonts.poppins(
+          //     fontSize: 16,
+          //     fontWeight: FontWeight.w600,
+          //     color: Colors.white70,
+          //   ),
+          // ),
+          // if (selectedCity != null)
+          //   TextButton(
+          //     onPressed: _clearFilters,
+          //     child: Text(
+          //       "Clear filter",
+          //       style: GoogleFonts.poppins(
+          //         color: Colors.pinkAccent,
+          //         fontSize: 14,
+          //       ),
+          //     ),
+          //   ),
+          //   ],
+          // ),
+          // const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              // Expanded so text field takes available space
+              Expanded(
+                child: TextFormField(
+                  controller: _cityController,
+                  style: GoogleFonts.poppins(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Search by City',
+                    hintStyle: GoogleFonts.poppins(color: Colors.white54),
+                    filled: true,
+                    fillColor: Colors.black.withValues(alpha: 0.3),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    suffixIcon:
+                        _cityController.text.isNotEmpty
+                            ? IconButton(
+                              icon: const Icon(
+                                Icons.clear,
+                                color: Colors.white70,
+                              ),
+                              onPressed: () {
+                                _cityController.clear();
+                                setState(() {
+                                  selectedCity = null;
+                                });
+                              },
+                            )
+                            : null,
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedCity = value.isNotEmpty ? value : null;
+                    });
+                  },
+                ),
+              ),
 
-          // City Search Input
-          Text(
-            "Search by City:",
-            style: GoogleFonts.poppins(fontSize: 14, color: Colors.white70),
+              const SizedBox(width: 8),
+
+              // Search button with icon
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // if (_cityController.text.isNotEmpty) {
+                    _loadEvents();
+                    // }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.pinkAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.all(0), // remove extra padding
+                  ),
+                  child: const Icon(Icons.search, size: 24),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
-          TextFormField(
-            controller: _cityController,
-            style: GoogleFonts.poppins(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Enter city name',
-              hintStyle: GoogleFonts.poppins(color: Colors.white54),
-              filled: true,
-              fillColor: Colors.black.withValues(alpha:0.3),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-              suffixIcon:
-                  _cityController.text.isNotEmpty
-                      ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.white70),
-                        onPressed: () {
-                          _cityController.clear();
-                          setState(() {
-                            selectedCity = null;
-                          });
-                        },
-                      )
-                      : null,
-            ),
-            onChanged: (value) {
-              setState(() {
-                selectedCity = value.isNotEmpty ? value : null;
-              });
-            },
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () {
-              if (_cityController.text.isNotEmpty) {
-                _loadEvents();
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.pinkAccent,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(
-              "Search Events",
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  // Widget _buildSearchFilters() {
-  //   return Container(
-  //     padding: const EdgeInsets.all(16),
-  //     decoration: BoxDecoration(
-  //       borderRadius: BorderRadius.circular(20),
-  //       gradient: const LinearGradient(
-  //         colors: [Color(0xFF1A063A), Color(0xFF2D0B5A)],
-  //         begin: Alignment.topLeft,
-  //         end: Alignment.bottomRight,
-  //       ),
-  //       boxShadow: [
-  //         BoxShadow(
-  //           color: Colors.purple.withValues(alpha:0.3),
-  //           blurRadius: 15,
-  //           offset: const Offset(0, 5),
-  //         ),
-  //       ],
-  //     ),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //           children: [
-  //             Text(
-  //               "Search Filters",
-  //               style: GoogleFonts.poppins(
-  //                 fontSize: 16,
-  //                 fontWeight: FontWeight.w600,
-  //                 color: Colors.white70,
-  //               ),
-  //             ),
-  //             if (selectedCountry != null ||
-  //                 selectedState != null ||
-  //                 selectedCity != null)
-  //               TextButton(
-  //                 onPressed: _clearFilters,
-  //                 child: Text(
-  //                   "Clear filters",
-  //                   style: GoogleFonts.poppins(
-  //                     color: Colors.pinkAccent,
-  //                     fontSize: 14,
-  //                   ),
-  //                 ),
-  //               ),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 12),
+  Widget _buildMap(
+    BuildContext context,
+    Position position,
+    NearbyEventLoaded state,
+  ) {
+    // --- Robust Bounds Calculation ---
+    LatLngBounds? safeBounds;
+    LatLng effectiveCenter = LatLng(
+      position.latitude,
+      position.longitude,
+    ); // Default center
+    double effectiveZoom = 10.5; // Default zoom
 
-  //         // Country Selection
-  //         Text(
-  //           "Select Country:",
-  //           style: GoogleFonts.poppins(fontSize: 14, color: Colors.white70),
-  //         ),
-  //         const SizedBox(height: 8),
-  //         ElevatedButton(
-  //           onPressed: () => _showCountrySelector(context),
-  //           style: ElevatedButton.styleFrom(
-  //             backgroundColor: Colors.black.withValues(alpha:0.3),
-  //             foregroundColor: Colors.white,
-  //             minimumSize: const Size(double.infinity, 50),
-  //             shape: RoundedRectangleBorder(
-  //               borderRadius: BorderRadius.circular(12),
-  //             ),
-  //           ),
-  //           child: Text(
-  //             selectedCountry ?? "Select Country",
-  //             style: GoogleFonts.poppins(),
-  //           ),
-  //         ),
-  //         const SizedBox(height: 16),
+    // Only attempt bounds calculation if there are events
+    if (state.events.isNotEmpty) {
+      List<LatLng> allPoints = [
+        LatLng(position.latitude, position.longitude), // User location
+        ...state.events.map(
+          (e) => LatLng(e.location.latitude, e.location.longitude),
+        ),
+      ];
 
-  //         // State Selection
-  //         Text(
-  //           "Select State:",
-  //           style: GoogleFonts.poppins(fontSize: 14, color: Colors.white70),
-  //         ),
-  //         const SizedBox(height: 8),
-  //         ElevatedButton(
-  //           onPressed:
-  //               selectedCountry != null
-  //                   ? () => _showStateSelector(context)
-  //                   : null,
-  //           style: ElevatedButton.styleFrom(
-  //             backgroundColor: Colors.black.withValues(alpha:0.3),
-  //             foregroundColor: Colors.white,
-  //             minimumSize: const Size(double.infinity, 50),
-  //             shape: RoundedRectangleBorder(
-  //               borderRadius: BorderRadius.circular(12),
-  //             ),
-  //           ),
-  //           child: Text(
-  //             selectedState ?? "Select State",
-  //             style: GoogleFonts.poppins(),
-  //           ),
-  //         ),
-  //         const SizedBox(height: 16),
+      // Check for edge case: all points are identical
+      bool allPointsIdentical = allPoints.every(
+        (point) =>
+            point.latitude == allPoints[0].latitude &&
+            point.longitude == allPoints[0].longitude,
+      );
 
-  //         // City Selection
-  //         Text(
-  //           "Select City:",
-  //           style: GoogleFonts.poppins(fontSize: 14, color: Colors.white70),
-  //         ),
-  //         const SizedBox(height: 8),
-  //         ElevatedButton(
-  //           onPressed:
-  //               selectedState != null ? () => _showCitySelector(context) : null,
-  //           style: ElevatedButton.styleFrom(
-  //             backgroundColor: Colors.black.withValues(alpha:0.3),
-  //             foregroundColor: Colors.white,
-  //             minimumSize: const Size(double.infinity, 50),
-  //             shape: RoundedRectangleBorder(
-  //               borderRadius: BorderRadius.circular(12),
-  //             ),
-  //           ),
-  //           child: Text(
-  //             selectedCity ?? "Select City",
-  //             style: GoogleFonts.poppins(),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
+      if (!allPointsIdentical) {
+        try {
+          safeBounds = LatLngBounds.fromPoints(allPoints);
 
- Widget _buildMap(
-  BuildContext context,
-  Position position,
-  NearbyEventLoaded state,
-) {
-  // --- Robust Bounds Calculation ---
-  LatLngBounds? safeBounds;
-  LatLng effectiveCenter = LatLng(position.latitude, position.longitude); // Default center
-  double effectiveZoom = 13.0; // Default zoom
-
-  // Only attempt bounds calculation if there are events
-  if (state.events.isNotEmpty) {
-    List<LatLng> allPoints = [
-      LatLng(position.latitude, position.longitude), // User location
-      ...state.events.map((e) => LatLng(e.location.latitude, e.location.longitude)),
-    ];
-
-    // Check for edge case: all points are identical
-    bool allPointsIdentical = allPoints.every((point) =>
-        point.latitude == allPoints[0].latitude &&
-        point.longitude == allPoints[0].longitude);
-
-    if (!allPointsIdentical) {
-      try {
-        safeBounds = LatLngBounds.fromPoints(allPoints);
-
-        // Validate the bounds (check for NaN/Infinity in center or span)
-        if (!safeBounds.center.latitude.isNaN &&
-            !safeBounds.center.longitude.isNaN &&
-         
-            !safeBounds.center.latitude.isInfinite &&
-            !safeBounds.center.longitude.isInfinite
-           ) {
-
-          effectiveCenter = safeBounds.center;
-          // Decide on zoom: If bounds are valid, we'll use CameraFit.bounds
-          // A default zoom is still needed as a fallback or initial value.
-          // 13 is a reasonable default for showing a city area.
-          effectiveZoom = 13.0;
-        } else {
-          // If bounds calculation resulted in invalid numbers, log and fallback
-          debugPrint("Warning: LatLngBounds calculation resulted in NaN/Infinity. Falling back to user location.");
+          // Validate the bounds (check for NaN/Infinity in center or span)
+          if (!safeBounds.center.latitude.isNaN &&
+              !safeBounds.center.longitude.isNaN &&
+              !safeBounds.center.latitude.isInfinite &&
+              !safeBounds.center.longitude.isInfinite) {
+            effectiveCenter = safeBounds.center;
+            effectiveZoom = 13.0;
+          } else {
+            // If bounds calculation resulted in invalid numbers, log and fallback
+            debugPrint(
+              "Warning: LatLngBounds calculation resulted in NaN/Infinity. Falling back to user location.",
+            );
+            safeBounds = null; // Ensure bounds aren't used
+          }
+        } catch (e) {
+          // If LatLngBounds.fromPoints throws (e.g., due to identical points causing division by zero)
+          debugPrint(
+            "LatLngBounds calculation error: $e. Falling back to user location.",
+          );
           safeBounds = null; // Ensure bounds aren't used
         }
-      } catch (e) {
-        // If LatLngBounds.fromPoints throws (e.g., due to identical points causing division by zero)
-        debugPrint("LatLngBounds calculation error: $e. Falling back to user location.");
+      } else {
+        // All points are the same, cannot calculate meaningful bounds
+        debugPrint(
+          "All marker points are identical. Cannot fit bounds. Showing default view.",
+        );
         safeBounds = null; // Ensure bounds aren't used
       }
     } else {
-      // All points are the same, cannot calculate meaningful bounds
-      debugPrint("All marker points are identical. Cannot fit bounds. Showing default view.");
-      safeBounds = null; // Ensure bounds aren't used
+      // No events, just show user location
+      safeBounds = null;
     }
-  } else {
-    // No events, just show user location
-    safeBounds = null;
-  }
 
-  // --- Map Widget ---
-  return Container(
-    constraints: const BoxConstraints(maxHeight: 250, minHeight: 250),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: [
-        BoxShadow(
-          color: const Color.fromRGBO(128, 0, 128, 0.3),
-          blurRadius: 15,
-          offset: const Offset(0, 5),
-        ),
-      ],
-    ),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: FlutterMap(
-        options: MapOptions(
-          // Provide a valid initial center and zoom to prevent TileLayer errors
-          initialCenter: effectiveCenter, // Guaranteed to be valid
-          initialZoom: effectiveZoom,     // Guaranteed to be valid
-          // Only use initialCameraFit if we have valid bounds
-          // This will override initialCenter/Zoom once calculated
-          initialCameraFit: safeBounds != null
-              ? CameraFit.bounds(
-                  bounds: safeBounds,
-                  padding: const EdgeInsets.all(50.0),
-                )
-              : null,
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
-            // Add error handling for tiles - important!
-            // Make sure NetworkTileProvider is imported from flutter_map
-            tileProvider: NetworkTileProvider(),
-            // Optional: Add errorBuilder for better tile loading UX
-            // errorBuilder: (context, error, stackTrace) {
-            //   return Container(color: Colors.grey.shade300); // Placeholder for failed tiles
-            // },
+    // --- Map Widget ---
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 350, minHeight: 350),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color.fromRGBO(128, 0, 128, 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
-          CircleLayer(
-            circles: [
-              CircleMarker(
-                point: LatLng(position.latitude, position.longitude),
-                radius: _searchRadius * 1000,
-                useRadiusInMeter: true,
-                color: const Color.fromRGBO(255, 64, 129, 0.2),
-                borderColor: Colors.pinkAccent,
-                borderStrokeWidth: 2,
-              ),
-            ],
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: FlutterMap(
+          options: MapOptions(
+            // Provide a valid initial center and zoom to prevent TileLayer errors
+            initialCenter: effectiveCenter, // Guaranteed to be valid
+            initialZoom: effectiveZoom, // Guaranteed to be valid
+            // Only use initialCameraFit if we have valid bounds
+            // This will override initialCenter/Zoom once calculated
+            initialCameraFit:
+                safeBounds != null
+                    ? CameraFit.bounds(
+                      bounds: safeBounds,
+                      padding: const EdgeInsets.all(50.0),
+                    )
+                    : null,
           ),
-          MarkerLayer(
-            markers: [
-              Marker(
-                point: LatLng(position.latitude, position.longitude),
-                width: 40,
-                height: 40,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.pinkAccent,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                  child: const Icon(
-                    Icons.person_pin_circle,
-                    color: Colors.white,
-                  ),
+          children: [
+            TileLayer(
+              urlTemplate: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+              // Add error handling for tiles - important!
+              // Make sure NetworkTileProvider is imported from flutter_map
+              tileProvider: NetworkTileProvider(),
+              // Optional: Add errorBuilder for better tile loading UX
+              // errorBuilder: (context, error, stackTrace) {
+              //   return Container(color: Colors.grey.shade300); // Placeholder for failed tiles
+              // },
+            ),
+            CircleLayer(
+              circles: [
+                CircleMarker(
+                  point: LatLng(position.latitude, position.longitude),
+                  radius: _searchRadius * 1000,
+                  useRadiusInMeter: true,
+                  color: const Color.fromRGBO(255, 64, 129, 0.2),
+                  borderColor: Colors.pinkAccent,
+                  borderStrokeWidth: 2,
                 ),
-              ),
-              ...state.events.map(
-                (event) => Marker(
-                  point: LatLng(
-                    event.location.latitude,
-                    event.location.longitude,
-                  ),
-                  width: 30,
-                  height: 30,
+              ],
+            ),
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: LatLng(position.latitude, position.longitude),
+                  width: 40,
+                  height: 40,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.purple,
+                      color: Colors.pinkAccent,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
                     child: const Icon(
-                      Icons.event,
-                      size: 16,
+                      Icons.person_pin_circle,
                       color: Colors.white,
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+                ...state.events.map(
+                  (event) => Marker(
+                    point: LatLng(
+                      event.location.latitude,
+                      event.location.longitude,
+                    ),
+                    width: 30,
+                    height: 30,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.purple,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.event,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
-  // Widget _buildMap(
-  //   BuildContext context,
-  //   Position position,
-  //   NearbyEventLoaded state,
-  //   double _searchRadius,
-  // ) {
-  //     LatLngBounds? bounds;
-  //   if (state.events.isNotEmpty) {
-  //     bounds = LatLngBounds.fromPoints([
-  //       LatLng(position.latitude, position.longitude),
-  //       ...state.events.map((e) => LatLng(e.location.latitude, e.location.longitude))
-  //     ]);
-  //   }
-  //   return Container(
-  //     height: 250,
-  //     decoration: BoxDecoration(
-  //       borderRadius: BorderRadius.circular(20),
-  //       boxShadow: [
-  //         BoxShadow(
-  //           color: Colors.purple.withValues(alpha:0.3),
-  //           blurRadius: 15,
-  //           offset: const Offset(0, 5),
-  //         ),
-  //       ],
-  //     ),
-  //     child: ClipRRect(
-  //       borderRadius: BorderRadius.circular(20),
-  //       child: FlutterMap(
-  //         options: MapOptions(
-  //           initialCenter: LatLng(position.latitude, position.longitude),
-  //           initialZoom: 13,
-  //           bounds: bounds,
-  //           boundsOptions: const FitBoundsOptions(padding: EdgeInsets.all(50)),
-  //         ),
-  //         children: [
-  //           TileLayer(
-  //             urlTemplate: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
-  //             userAgentPackageName: 'com.example.app',
-  //           ),
-  //           CircleLayer(
-  //             circles: [
-  //               CircleMarker(
-  //                 point: LatLng(position.latitude, position.longitude),
-  //                 radius: _searchRadius * 1000,
-  //                 useRadiusInMeter: true,
-  //                 color: Colors.pinkAccent.withOpacity(0.2),
-  //                 borderColor: Colors.pinkAccent,
-  //                 borderStrokeWidth: 2,
-  //               ),
-  //             ],
-  //           ),
-  //           MarkerLayer(
-  //             markers: [
-  //               Marker(
-  //                 point: LatLng(position.latitude, position.longitude),
-  //                 width: 40,
-  //                 height: 40,
-  //                 child: Container(
-  //                   decoration: BoxDecoration(
-  //                     color: Colors.pinkAccent,
-  //                     shape: BoxShape.circle,
-  //                     border: Border.all(color: Colors.white, width: 2),
-  //                   ),
-  //                   child: const Icon(
-  //                     Icons.person_pin_circle,
-  //                     color: Colors.white,
-  //                   ),
-  //                 ),
-  //               ),
-  //               ...state.events.map(
-  //                 (event) => Marker(
-  //                   point: LatLng(
-  //                     event.location.latitude,
-  //                     event.location.longitude,
-  //                   ),
-  //                   width: 30,
-  //                   height: 30,
-  //                   child: Container(
-  //                     decoration: BoxDecoration(
-  //                       color: Colors.purple,
-  //                       shape: BoxShape.circle,
-  //                       border: Border.all(color: Colors.white, width: 2),
-  //                     ),
-  //                     child: const Icon(
-  //                       Icons.event,
-  //                       size: 16,
-  //                       color: Colors.white,
-  //                     ),
-  //                   ),
-  //                 ),
-  //               ),
-  //             ],
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
+    );
+  }
 
   Widget _buildEventsList(BuildContext context, EventState state) {
     if (state is NearbyEventLoading) {
@@ -1266,14 +837,61 @@ class _NearbyEventsPageState extends State<NearbyEventsPage> {
           ),
         );
       }
-      return ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: state.events.length,
-        itemBuilder: (context, index) {
-          final event = state.events[index];
-          return _EventListItem(event: event);
-        },
+      return Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.pinkAccent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    "Date",
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    "Event Name",
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    "Host",
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const Expanded(flex: 1, child: SizedBox()),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: state.events.length,
+            itemBuilder: (context, index) {
+              final event = state.events[index];
+              return _EventListItem(event: event);
+            },
+          ),
+        ],
       );
     } else if (state is EventFailure) {
       return Container(

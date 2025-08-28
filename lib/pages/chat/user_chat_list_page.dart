@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'dart:ui' as ui;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:app/pages/chat/chat_page.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:rxdart/rxdart.dart';
 
 class UserChatListPage extends StatefulWidget {
   const UserChatListPage({super.key});
@@ -13,119 +17,198 @@ class UserChatListPage extends StatefulWidget {
 
 class _UserChatListPageState extends State<UserChatListPage> {
   final FocusNode _searchFocusNode = FocusNode();
-  final Map<String, Map<String, dynamic>> _matchedUsers = {};
-  final Map<String, Map<String, dynamic>> _filteredUsers = {};
-  bool _loading = true;
-  String? _error;
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
+  final BehaviorSubject<String> _searchQuery = BehaviorSubject.seeded('');
+  final BehaviorSubject<bool> _loading = BehaviorSubject.seeded(true);
+  final BehaviorSubject<String?> _error = BehaviorSubject.seeded(null);
+  final ScrollController _scrollController = ScrollController();
+  late final ValueNotifier<bool> _scrolledNotifier;
+
+  // Stream for matched users
+  final BehaviorSubject<Map<String, Map<String, dynamic>>> _matchedUsers =
+      BehaviorSubject.seeded({});
+
+  // Combined stream for filtered users
+  late final Stream<Map<String, Map<String, dynamic>>> _filteredUsers;
+
+  // Track if the page is disposed
+  bool _isDisposed = false;
+
+  // Track ongoing operations to cancel them on dispose
+  Future<void>? _loadMatchesOperation;
 
   @override
   void initState() {
+    _scrolledNotifier = ValueNotifier<bool>(false);
+    _scrollController.addListener(_scrollListener);
     super.initState();
+
+    // Create filtered users stream by combining search query and matched users
+    _filteredUsers = Rx.combineLatest2(_matchedUsers, _searchQuery, (
+      Map<String, Map<String, dynamic>> users,
+      String query,
+    ) {
+      if (query.isEmpty) return users;
+
+      final filtered = <String, Map<String, dynamic>>{};
+      for (var entry in users.entries) {
+        final name = entry.value['name']?.toString().toLowerCase() ?? '';
+        if (name.contains(query)) {
+          filtered[entry.key] = entry.value;
+        }
+      }
+      return filtered;
+    });
+
     _searchController.addListener(_onSearchChanged);
     _loadMatches();
   }
 
+  void _scrollListener() {
+    if (!_scrollController.hasClients) return;
+
+    final isScrolled = _scrollController.offset > 50;
+    if (_scrolledNotifier.hasListeners &&
+        isScrolled != _scrolledNotifier.value) {
+      _scrolledNotifier.value = isScrolled;
+    }
+  }
+
   @override
   void dispose() {
+    _isDisposed = true;
+    if (_scrollController.hasListeners) {
+      _scrollController.removeListener(_scrollListener);
+    }
+    _scrollController.dispose();
+    _scrolledNotifier.dispose();
+
+    // Cancel any ongoing operations
+    _loadMatchesOperation?.ignore();
+
     _searchController.removeListener(_onSearchChanged);
     _searchFocusNode.dispose();
     _searchController.dispose();
+
+    // Only close streams if they haven't been closed already
+    if (!_searchQuery.isClosed) _searchQuery.close();
+    if (!_loading.isClosed) _loading.close();
+    if (!_error.isClosed) _error.close();
+    if (!_matchedUsers.isClosed) _matchedUsers.close();
+
     super.dispose();
   }
 
   void _onSearchChanged() {
-    setState(() {
-      _searchQuery = _searchController.text.toLowerCase();
-      _filterUsers();
-    });
-  }
-
-  void _filterUsers() {
-    if (_searchQuery.isEmpty) {
-      _filteredUsers.clear();
-      _filteredUsers.addAll(_matchedUsers);
-    } else {
-      _filteredUsers.clear();
-      for (var entry in _matchedUsers.entries) {
-        final name = entry.value['name']?.toString().toLowerCase() ?? '';
-        if (name.contains(_searchQuery)) {
-          _filteredUsers[entry.key] = entry.value;
-        }
-      }
-    }
+    if (_isDisposed) return;
+    _searchQuery.add(_searchController.text.toLowerCase());
   }
 
   Future<void> _loadMatches() async {
+    // Cancel any previous operation
+    _loadMatchesOperation?.ignore();
+
+    // Create a new operation
+    final completer = Completer<void>();
+    _loadMatchesOperation = completer.future;
+
     try {
-      setState(() {
-        _loading = true;
-        _error = null;
-        _matchedUsers.clear();
-        _filteredUsers.clear();
-      });
+      if (_isDisposed) return;
+      _loading.add(true);
+      _error.add(null);
+      _matchedUsers.add({});
 
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null || _isDisposed) {
+        completer.complete();
+        return;
+      }
 
       final firestore = FirebaseFirestore.instance;
-      
-      final matchesSnapshot = await firestore
-          .collectionGroup('matches')
-          .where('userId', isEqualTo: user.uid)
-          .where('released', isEqualTo: true)
-          .where('matchedWith', isNotEqualTo: '')
-          .get();
 
-      final matchedUserIds = matchesSnapshot.docs
-          .map((doc) => doc.data()['matchedWith'] as String)
-          .toSet();
+      final matchesSnapshot =
+          await firestore
+              .collectionGroup('matches')
+              .where('userId', isEqualTo: user.uid)
+              .where('released', isEqualTo: true)
+              .where('matchedWith', isNotEqualTo: '')
+              .get();
 
-      await Future.wait(
-        matchedUserIds.map((userId) => _fetchUserDetails(userId)),
-      );
+      if (_isDisposed) {
+        completer.complete();
+        return;
+      }
 
-      _filterUsers(); // Initialize filtered list
-      setState(() => _loading = false);
-    } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = 'Failed to load chats. Please try again.';
-      });
-    }
-  }
+      final matchedUserIds =
+          matchesSnapshot.docs
+              .map((doc) => doc.data()['matchedWith'] as String)
+              .toSet();
 
-  Future<void> _fetchUserDetails(String userId) async {
-    try {
-      final firestore = FirebaseFirestore.instance;
-      final userDoc = await firestore.collection('users').doc(userId).get();
-      if (!userDoc.exists) return;
+      if (matchedUserIds.isEmpty) {
+        if (_isDisposed) {
+          completer.complete();
+          return;
+        }
+        _loading.add(false);
+        completer.complete();
+        return;
+      }
 
-      final userData = userDoc.data() ?? {};
-      
-      setState(() {
-        _matchedUsers[userId] = {
+      // Batch fetch all user details at once
+      final usersSnapshot =
+          await firestore
+              .collection('users')
+              .where(FieldPath.documentId, whereIn: matchedUserIds.toList())
+              .get();
+
+      if (_isDisposed) {
+        completer.complete();
+        return;
+      }
+
+      final usersMap = <String, Map<String, dynamic>>{};
+      for (var doc in usersSnapshot.docs) {
+        final userData = doc.data();
+        usersMap[doc.id] = {
           'name': userData['name'] ?? 'User',
           'photoUrl': userData['photoURL'] as String? ?? '',
         };
-      });
+      }
+
+      if (_isDisposed) {
+        completer.complete();
+        return;
+      }
+
+      _matchedUsers.add(usersMap);
+      _loading.add(false);
+      completer.complete();
     } catch (e) {
-      setState(() {
-        _matchedUsers[userId] = {
-          'name': 'Unknown User',
-          'photoUrl': '',
-        };
-      });
+      if (_isDisposed) {
+        completer.complete();
+        return;
+      }
+      _loading.add(false);
+      _error.add('Failed to load chats. Please try again.');
+      completer.complete();
+    }
+  }
+
+  // Helper method to safely add to streams
+  void _safeAddToStream<T>(BehaviorSubject<T> stream, T value) {
+    if (!_isDisposed && !stream.isClosed) {
+      stream.add(value);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
           'Chats',
@@ -135,42 +218,107 @@ class _UserChatListPageState extends State<UserChatListPage> {
             color: colorScheme.onSurface,
           ),
         ),
-        centerTitle: false,
-        actions: [
-          if (_matchedUsers.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: () {
-                // Focus on search field
-                FocusScope.of(context).requestFocus(_searchFocusNode);
-                Future.delayed(const Duration(milliseconds: 50), () {
-                  FocusScope.of(context).requestFocus();
-                });
-              },
-            ),
-        ],
+        centerTitle: true,
+        flexibleSpace: ValueListenableBuilder<bool>(
+          valueListenable: _scrolledNotifier,
+          builder: (context, isScrolled, child) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              decoration: BoxDecoration(
+                gradient:
+                    isScrolled
+                        ? LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.pinkAccent.shade100,
+                            Colors.purple,
+                            Colors.deepPurple,
+                          ],
+                        )
+                        : null,
+              ),
+            );
+          },
+        ),
+        // actions: [
+        //   StreamBuilder<Map<String, Map<String, dynamic>>>(
+        //     stream: _matchedUsers,
+        //     builder: (context, snapshot) {
+        //       final hasUsers = snapshot.hasData && snapshot.data!.isNotEmpty;
+        //       return hasUsers
+        //           ? IconButton(
+        //               icon: const Icon(Icons.search),
+        //               onPressed: () {
+        //                 FocusScope.of(context).requestFocus(_searchFocusNode);
+        //               },
+        //             )
+        //           : const SizedBox.shrink();
+        //     },
+        //   ),
+        // ],
       ),
-      body: _buildChatListContent(context, colorScheme),
+      body: StreamBuilder<Map<String, Map<String, dynamic>>>(
+        stream: _matchedUsers,
+        builder: (context, matchedUsersSnapshot) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  ui.Color.fromARGB(100, 255, 249, 136),
+                  ui.Color.fromARGB(100, 158, 126, 249),
+                  ui.Color.fromARGB(100, 104, 222, 245),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: StreamBuilder<bool>(
+                stream: _loading,
+                builder: (context, loadingSnapshot) {
+                  return StreamBuilder<String?>(
+                    stream: _error,
+                    builder: (context, errorSnapshot) {
+                      return _buildChatListContent(
+                        context,
+                        colorScheme,
+                        matchedUsersSnapshot.data ?? {},
+                        loadingSnapshot.data ?? true,
+                        errorSnapshot.data,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildChatListContent(BuildContext context, ColorScheme colorScheme) {
-    if (_error != null) {
+  Widget _buildChatListContent(
+    BuildContext context,
+    ColorScheme colorScheme,
+    Map<String, Map<String, dynamic>> matchedUsers,
+    bool loading,
+    String? error,
+  ) {
+    if (error != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, 
-                  size: 48, 
-                  color: colorScheme.error),
+              Icon(Icons.error_outline, size: 48, color: colorScheme.error),
               const SizedBox(height: 20),
               Text(
-                _error!,
+                error,
                 style: GoogleFonts.raleway(
-                  color: colorScheme.onSurface, 
-                  fontSize: 16
+                  color: colorScheme.onSurface,
+                  fontSize: 16,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -185,38 +333,43 @@ class _UserChatListPageState extends State<UserChatListPage> {
       );
     }
 
-    if (_loading) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(
-              color: colorScheme.primary,
-              strokeWidth: 2,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Loading your chats...',
-              style: GoogleFonts.raleway(
-                color: colorScheme.onSurfaceVariant,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
+    if (loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.pinkAccent),
       );
+      // return Center(
+      //   child: Column(
+      //     mainAxisSize: MainAxisSize.min,
+      //     children: [
+      //       CircularProgressIndicator(
+      //         color: colorScheme.primary,
+      //         strokeWidth: 2,
+      //       ),
+      //       const SizedBox(height: 20),
+      //       Text(
+      //         'Loading your chats...',
+      //         style: GoogleFonts.raleway(
+      //           color: colorScheme.onSurfaceVariant,
+      //           fontSize: 16,
+      //         ),
+      //       ),
+      //     ],
+      //   ),
+      // );
     }
 
-    if (_matchedUsers.isEmpty) {
+    if (matchedUsers.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.forum_outlined, 
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.7), 
-                  size: 80),
+              Icon(
+                Icons.forum_outlined,
+                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                size: 80,
+              ),
               const SizedBox(height: 24),
               Text(
                 'No chats yet',
@@ -248,7 +401,7 @@ class _UserChatListPageState extends State<UserChatListPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Container(
             decoration: BoxDecoration(
-              color: colorScheme.surfaceVariant,
+              color: colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
             ),
             child: TextField(
@@ -256,31 +409,47 @@ class _UserChatListPageState extends State<UserChatListPage> {
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search chats...',
-                hintStyle: GoogleFonts.raleway(color: colorScheme.onSurfaceVariant),
-                prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
+                hintStyle: GoogleFonts.raleway(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: colorScheme.onSurfaceVariant,
+                ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
               style: GoogleFonts.raleway(color: colorScheme.onSurface),
             ),
           ),
         ),
-        
-        // Chat list
+
+        // Chat list with filtered users
         Expanded(
-          child: _filteredUsers.isEmpty && _searchQuery.isNotEmpty
-              ? Center(
+          child: StreamBuilder<Map<String, Map<String, dynamic>>>(
+            stream: _filteredUsers,
+            builder: (context, snapshot) {
+              final filteredUsers = snapshot.data ?? {};
+              final searchQuery = _searchController.text.toLowerCase();
+
+              if (filteredUsers.isEmpty && searchQuery.isNotEmpty) {
+                return Center(
                   child: Padding(
                     padding: const EdgeInsets.all(32),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.search_off, 
-                            size: 48, 
-                            color: colorScheme.onSurfaceVariant),
+                        Icon(
+                          Icons.search_off,
+                          size: 48,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                         const SizedBox(height: 16),
                         Text(
-                          'No matches found',
+                          'No users found',
                           style: GoogleFonts.raleway(
                             fontSize: 18,
                             fontWeight: FontWeight.w500,
@@ -289,7 +458,7 @@ class _UserChatListPageState extends State<UserChatListPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Try a different search term',
+                          'Try searching with a different name',
                           style: GoogleFonts.raleway(
                             color: colorScheme.onSurfaceVariant,
                           ),
@@ -297,34 +466,45 @@ class _UserChatListPageState extends State<UserChatListPage> {
                       ],
                     ),
                   ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _filteredUsers.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final userId = _filteredUsers.keys.elementAt(index);
-                    final userData = _filteredUsers[userId]!;
-                    final photoUrl = userData['photoUrl'] as String?;
-                    return _ChatListItem(
-                      userId: userId,
-                      name: userData['name'] as String,
-                      photoUrl: photoUrl,
-                      colorScheme: colorScheme,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChatPage(
-                              matchedUserId: userId,
-                              matchedUserName: userData['name'] as String,
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
+                );
+              }
+
+              return ListView.separated(
+                controller: _scrollController,
+                physics: AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                itemCount: filteredUsers.length,
+                separatorBuilder:
+                    (context, index) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final userId = filteredUsers.keys.elementAt(index);
+                  final userData = filteredUsers[userId]!;
+                  final photoUrl = userData['photoUrl'] as String?;
+
+                  return _ChatListItem(
+                    userId: userId,
+                    name: userData['name'] as String,
+                    photoUrl: photoUrl,
+                    colorScheme: colorScheme,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => ChatPage(
+                                matchedUserId: userId,
+                                matchedUserName: userData['name'] as String,
+                                matchedUserPhotoUrl:
+                                    userData['photoUrl'] as String?,
+                              ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
         ),
       ],
     );
@@ -350,7 +530,11 @@ class _ChatListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       borderRadius: BorderRadius.circular(16),
-      color: colorScheme.surfaceContainer,
+      // color: colorScheme.surfaceContainer,
+      color:
+          Theme.of(context).brightness == Brightness.dark
+              ? Colors.black26
+              : Colors.white70,
       elevation: 0,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -364,21 +548,25 @@ class _ChatListItem extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: colorScheme.primary.withOpacity(0.2),
+                    color: colorScheme.primary.withValues(alpha: 0.2),
                     width: 2,
                   ),
                 ),
                 child: CircleAvatar(
                   radius: 24,
-                  backgroundColor: colorScheme.surfaceVariant,
-                  backgroundImage: (photoUrl != null && photoUrl!.isNotEmpty)
-                      ? NetworkImage(photoUrl!)
-                      : null,
-                  child: (photoUrl == null || photoUrl!.isEmpty)
-                      ? Icon(Icons.person, 
-                          color: colorScheme.onSurfaceVariant,
-                          size: 24)
-                      : null,
+                  backgroundColor: colorScheme.surfaceContainerHighest,
+                  backgroundImage:
+                      (photoUrl != null && photoUrl!.isNotEmpty)
+                          ? NetworkImage(photoUrl!)
+                          : null,
+                  child:
+                      (photoUrl == null || photoUrl!.isEmpty)
+                          ? Icon(
+                            Icons.person,
+                            color: colorScheme.onSurfaceVariant,
+                            size: 24,
+                          )
+                          : null,
                 ),
               ),
               const SizedBox(width: 16),

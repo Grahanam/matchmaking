@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:app/models/group.dart';
 import 'package:app/models/question_model.dart';
 import 'package:app/pages/qr/scan_qr_page.dart';
@@ -11,8 +12,7 @@ import 'package:intl/intl.dart';
 import '../../models/event.dart';
 import 'package:app/pages/chat/chat_page.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-import 'package:app/pages/chat/event_chat_page.dart'; 
-
+import 'package:app/pages/chat/event_chat_page.dart';
 
 class ChartData {
   final String category;
@@ -39,7 +39,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
   bool _isCheckedIn = false;
   Map<String, dynamic>? _existingAnswers;
   DocumentSnapshot? _matchData;
-  String? _matchedUserName; 
+  String? _matchedUserName;
   bool _eventHasStarted = false;
   DateTime? _checkInTime;
   Group? _userGroup;
@@ -64,12 +64,27 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
   bool _feedbackSubmitted = false;
   bool _hasSubmittedFeedback = false;
 
+  final ScrollController _scrollController = ScrollController();
+  late final ValueNotifier<bool> _scrolledNotifier;
+
   @override
   void initState() {
     super.initState();
     _fetchData();
     _setupListeners();
     _checkEventStatus();
+    _scrolledNotifier = ValueNotifier<bool>(false);
+    _scrollController.addListener(_scrollListener);
+  }
+
+  void _scrollListener() {
+    if (!_scrollController.hasClients) return;
+
+    final isScrolled = _scrollController.offset > 50;
+    if (_scrolledNotifier.hasListeners &&
+        isScrolled != _scrolledNotifier.value) {
+      _scrolledNotifier.value = isScrolled;
+    }
   }
 
   bool _isAnswerValid(QuestionModel q, dynamic answer) {
@@ -95,13 +110,13 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
   }
 
   bool _isUserMatchReleased() {
-  if (_matchData == null || !_matchData!.exists) return false;
-  
-  final matchDocData = _matchData!.data() as Map<String, dynamic>?;
-  if (matchDocData == null) return false;
-  
-  return matchDocData['released'] as bool? ?? true;
-}
+    if (_matchData == null || !_matchData!.exists) return false;
+
+    final matchDocData = _matchData!.data() as Map<String, dynamic>?;
+    if (matchDocData == null) return false;
+
+    return matchDocData['released'] as bool? ?? true;
+  }
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, "0");
@@ -152,7 +167,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
       });
     });
   }
-
 
   void _setupListeners() {
     final eventId = widget.event.id;
@@ -320,6 +334,12 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
     _matchSubscription?.cancel();
     _feedbackTimer?.cancel();
     _countdownTimer?.cancel();
+
+    if (_scrollController.hasListeners) {
+      _scrollController.removeListener(_scrollListener);
+    }
+    _scrollController.dispose();
+    _scrolledNotifier.dispose();
     super.dispose();
   }
 
@@ -428,8 +448,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
             .limit(1)
             .get(),
       ]);
-
-      
 
       final checkinData = results[0] as Map<String, dynamic>;
       final applicantDoc = results[1] as DocumentSnapshot;
@@ -592,7 +610,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[800],
+        // color: Colors.grey[800],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[700]!),
       ),
@@ -608,7 +626,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   q.text,
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w500,
-                    color: Colors.white,
+                    // color: Colors.white,
                     fontSize: 16,
                   ),
                 ),
@@ -691,7 +709,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
       elevation: 3,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: Colors.grey[850],
+
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -706,7 +724,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
                   ),
                 ),
               ],
@@ -748,7 +765,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                           label: const Text("Feedback Submitted"),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
                           ),
                           onPressed: null, // Disabled button
                         )
@@ -787,23 +803,21 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
               ),
             ),
             const SizedBox(height: 8),
-            ..._groupMembers
-                .map(
-                  (member) => ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage:
-                          member['photoURL'] != null
-                              ? NetworkImage(member['photoURL']!)
-                              : null,
-                      child:
-                          member['photoURL'] == null
-                              ? Text(member['name'][0])
-                              : null,
-                    ),
-                    title: Text(member['name']),
-                  ),
-                )
-                ,
+            ..._groupMembers.map(
+              (member) => ListTile(
+                leading: CircleAvatar(
+                  backgroundImage:
+                      member['photoURL'] != null
+                          ? NetworkImage(member['photoURL']!)
+                          : null,
+                  child:
+                      member['photoURL'] == null
+                          ? Text(member['name'][0])
+                          : null,
+                ),
+                title: Text(member['name']),
+              ),
+            ),
             // ..._userGroup!.members
             //     .map(
             //       (memberId) => FutureBuilder<DocumentSnapshot>(
@@ -1024,7 +1038,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: Colors.grey[850],
+      // color: Colors.grey[850],
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -1039,7 +1053,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    // color: Colors.white,
                   ),
                 ),
               ],
@@ -1355,7 +1369,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
   }
 
   Widget _buildMatchRevealSection() {
-
     if (!_eventHasStarted) {
       // Don't show match section if event hasn't started
       return const SizedBox.shrink();
@@ -1375,11 +1388,10 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
 
     // Case 1: Matches not released yet by admin OR user's specific match not released
     if (!_matchReleased || !isUserMatchReleased) {
-    
       return Card(
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: Colors.grey[850],
+
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Row(
@@ -1396,7 +1408,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
               ),
@@ -1445,48 +1456,42 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
       );
     }
 
-
-
     final matchDocData = _matchData!.data() as Map<String, dynamic>;
     final matchedWithId = matchDocData['matchedWith'] as String? ?? '';
 
-     if (matchedWithId.isEmpty) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: Colors.grey[850],
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Icon(
-              Icons.people_alt_outlined,
-              size: 48,
-              color: Colors.blueGrey,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "No match this time",
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white70,
+    if (matchedWithId.isEmpty) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: Colors.grey[850],
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Icon(Icons.people_alt_outlined, size: 48, color: Colors.blueGrey),
+              const SizedBox(height: 16),
+              Text(
+                "No match this time",
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white70,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "We couldn't find a match for you this event. Enjoy meeting new people!",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.raleway(
-                color: Colors.grey[500],
-                fontSize: 14,
+              const SizedBox(height: 8),
+              Text(
+                "We couldn't find a match for you this event. Enjoy meeting new people!",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.raleway(
+                  color: Colors.grey[500],
+                  fontSize: 14,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
+      );
+    }
     final matchedWithIdRaw = matchDocData['matchedWith'] as String? ?? '';
     final actualMatchedUserId =
         matchedWithIdRaw.contains('-')
@@ -1537,42 +1542,38 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
     }
 
     if (matchedWithId.isEmpty) {
-    return Card(
+      return Card(
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         color: Colors.grey[850],
         child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-                children: [
-                    Icon(
-                        Icons.people_alt_outlined,
-                        size: 48,
-                        color: Colors.blueGrey,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                        "No match this time",
-                        style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white70,
-                        ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                        "We couldn't find a match for you this event. Enjoy meeting new people!",
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.raleway(
-                            color: Colors.grey[500],
-                            fontSize: 14,
-                        ),
-                    ),
-                ],
-            ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Icon(Icons.people_alt_outlined, size: 48, color: Colors.blueGrey),
+              const SizedBox(height: 16),
+              Text(
+                "No match this time",
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white70,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "We couldn't find a match for you this event. Enjoy meeting new people!",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.raleway(
+                  color: Colors.grey[500],
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
         ),
-    );
-}
+      );
+    }
 
     // Case 4: User has a valid match
     return Card(
@@ -1692,7 +1693,9 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
               decoration: BoxDecoration(
                 color: Colors.pinkAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.pinkAccent.withValues(alpha:0.3)),
+                border: Border.all(
+                  color: Colors.pinkAccent.withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 children: [
@@ -1740,7 +1743,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
     return ElevatedButton.icon(
       icon: Icon(
         icon,
-        color: currentIconColor.withValues(alpha:isEnabled ? 1.0 : 0.7),
+        color: currentIconColor.withValues(alpha: isEnabled ? 1.0 : 0.7),
       ),
       label: Text(
         label,
@@ -1761,19 +1764,18 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
   }
 
   Widget _buildMatchAnalysisSection() {
-
-    if (_matchData != null && 
-      _matchData!.exists && 
-      (_matchData!.data() as Map<String, dynamic>)['matchedWith']?.isEmpty == true) {
-    return SizedBox.shrink();
-  }
+    if (_matchData != null &&
+        _matchData!.exists &&
+        (_matchData!.data() as Map<String, dynamic>)['matchedWith']?.isEmpty ==
+            true) {
+      return SizedBox.shrink();
+    }
 
     final isReleased = _matchReleased && _isUserMatchReleased();
 
-      if (!isReleased || _matchData == null || !_matchData!.exists) {
-    return SizedBox.shrink();
-  }
-
+    if (!isReleased || _matchData == null || !_matchData!.exists) {
+      return SizedBox.shrink();
+    }
 
     return Card(
       elevation: 3,
@@ -2075,10 +2077,8 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
 
         case QuestionType.multiSelect:
           if (userAnswer is List && matchAnswer is List) {
-            final userList =
-                (userAnswer).map((e) => e.toString()).toList();
-            final matchList =
-                (matchAnswer).map((e) => e.toString()).toList();
+            final userList = (userAnswer).map((e) => e.toString()).toList();
+            final matchList = (matchAnswer).map((e) => e.toString()).toList();
 
             final userSet = Set<String>.from(userList);
             final matchSet = Set<String>.from(matchList);
@@ -2392,7 +2392,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: Colors.grey[850], // Dark card color
+      // color: Colors.grey[850], // Dark card color
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -2403,7 +2403,6 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
               style: GoogleFonts.poppins(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
               ),
             ),
             const SizedBox(height: 10),
@@ -2411,7 +2410,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
               children: [
                 Icon(
                   Icons.calendar_today_rounded,
-                  color: Colors.grey[400],
+                  color: Colors.pinkAccent,
                   size: 16,
                 ),
                 const SizedBox(width: 8),
@@ -2420,7 +2419,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                     'EEEE, MMM d • h:mm a',
                   ).format(widget.event.startTime),
                   style: GoogleFonts.raleway(
-                    color: Colors.grey[400],
+                    // color: Colors.white12,
                     fontSize: 14,
                   ),
                 ),
@@ -2431,7 +2430,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
               children: [
                 Icon(
                   Icons.location_on_outlined,
-                  color: Colors.grey[400],
+                  color: Colors.pinkAccent,
                   size: 16,
                 ),
                 const SizedBox(width: 8),
@@ -2439,10 +2438,7 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
                   widget
                       .event
                       .locationType, // Assuming locationType is a simple string
-                  style: GoogleFonts.raleway(
-                    color: Colors.grey[400],
-                    fontSize: 14,
-                  ),
+                  style: GoogleFonts.raleway(fontSize: 14),
                 ),
               ],
             ),
@@ -2454,147 +2450,200 @@ class _AcceptedEventDetailPageState extends State<AcceptedEventDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final appBarTitleStyle = GoogleFonts.poppins(
-      fontWeight: FontWeight.bold,
-      color: Colors.white,
-    );
+    final appBarTitleStyle = GoogleFonts.poppins(fontWeight: FontWeight.bold);
 
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: Colors.black,
         appBar: AppBar(
-          title: Text("Event Actions", style: appBarTitleStyle),
-          backgroundColor: Colors.grey[900],
-          elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.white),
+          title: Text(
+          "Event Actions",
+          style: GoogleFonts.raleway(fontWeight: FontWeight.bold),
         ),
-        body: const Center(
-          child: CircularProgressIndicator(color: Colors.pinkAccent),
+          elevation: 0,
+        ),
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ui.Color.fromARGB(100, 255, 249, 136),
+                ui.Color.fromARGB(100, 158, 126, 249),
+                ui.Color.fromARGB(100, 104, 222, 245),
+              ],
+            ),
+          ),
+          child: const Center(
+            child: CircularProgressIndicator(color: Colors.pinkAccent),
+          ),
         ),
       );
     }
     return Scaffold(
-      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text("Event Actions", style: appBarTitleStyle),
-        backgroundColor: Colors.grey[900],
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        title: Text(
+          "Event Actions",
+          style: GoogleFonts.raleway(fontWeight: FontWeight.bold),
+        ),
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-        // Add chat icon button here
-        if (_eventHasStarted && _isCheckedIn)
-          IconButton(
-            icon: const Icon(Icons.chat),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EventChatPage(
-                    event: widget.event,
-                    isHost: false,
-                  ),
-                ),
-              );
-            },
-            tooltip: 'Event Chat',
-          ),
-        const SizedBox(width: 12),
-      ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        color: Colors.pinkAccent,
-        backgroundColor: Colors.grey[850],
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.stretch, // Ensure cards take full width
-            children: [
-              _buildEventHeader(),
-              const SizedBox(height: 20),
-              _buildActionButton(
-                _isCheckedIn
-                    ? Icons.check_circle_rounded
-                    : Icons.qr_code_scanner_rounded,
-                _isCheckedIn
-                    ? "Checked In at ${_checkInTime != null ? DateFormat('h:mm a').format(_checkInTime!) : 'Successfully'}"
-                    : _eventHasStarted
-                    ? "Scan QR to Check In"
-                    : "Check-in starts: ${DateFormat('h:mm a').format(widget.event.startTime)}",
-                _eventHasStarted && !_isCheckedIn
-                    ? () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => ScanQRPage(eventId: widget.event.id),
-                        ),
-                      );
-                      if (result == true && mounted) {
-                        await _refreshData();
-                      }
-                    }
-                    : null,
-                backgroundColor:
-                    _isCheckedIn
-                        ? Colors.green.shade600
-                        : (_eventHasStarted ? Colors.purple : Colors.grey[700]),
+         flexibleSpace: ValueListenableBuilder<bool>(
+          valueListenable: _scrolledNotifier,
+          builder: (context, isScrolled, child) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              decoration: BoxDecoration(
+                gradient:
+                    isScrolled
+                        ? LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.pinkAccent.shade100,
+                            Colors.purple,
+                            Colors.deepPurple,
+                          ],
+                        )
+                        : null,
               ),
-              const SizedBox(height: 20),
-
-              _buildGroupSection(),
-
-              _buildFeedbackSection(),
-              const SizedBox(height: 20),
-
-              _buildMatchRevealSection(), // Will be SizedBox.shrink if event not started
-              _buildMatchAnalysisSection(),
-              const SizedBox(height: 24),
-
-              if (_eventHasStarted)
-                _buildQuestionsSection()
-              else
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+            );
+          },
+        ),
+        actions: [
+          // Add chat icon button here
+          if (_eventHasStarted && _isCheckedIn)
+            IconButton(
+              icon: const Icon(Icons.chat),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) =>
+                            EventChatPage(event: widget.event, isHost: false),
                   ),
-                  color: Colors.grey[850],
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.hourglass_top_rounded,
-                          size: 48,
-                          color: Colors.orange.shade600,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "Event actions & questions available once the event starts.",
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white70,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          "Starts at ${DateFormat('EEE, MMM d • h:mm a').format(widget.event.startTime)}",
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.raleway(
-                            color: Colors.grey[500],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 20), // Bottom padding
+                );
+              },
+              tooltip: 'Event Chat',
+            ),
+          const SizedBox(width: 12),
+        ],
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              ui.Color.fromARGB(100, 255, 249, 136),
+              ui.Color.fromARGB(100, 158, 126, 249),
+              ui.Color.fromARGB(100, 104, 222, 245),
             ],
+          ),
+        ),
+        child: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: _refreshData,
+            color: Colors.pinkAccent,
+            // backgroundColor: Colors.grey[850],
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.stretch, // Ensure cards take full width
+                children: [
+                  _buildEventHeader(),
+                  const SizedBox(height: 20),
+                  _buildActionButton(
+                    _isCheckedIn
+                        ? Icons.check_circle_rounded
+                        : Icons.qr_code_scanner_rounded,
+                    _isCheckedIn
+                        ? "Checked In at ${_checkInTime != null ? DateFormat('h:mm a').format(_checkInTime!) : 'Successfully'}"
+                        : _eventHasStarted
+                        ? "Scan QR to Check In"
+                        : "Check-in starts: ${DateFormat('h:mm a').format(widget.event.startTime)}",
+                    _eventHasStarted && !_isCheckedIn
+                        ? () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) =>
+                                      ScanQRPage(eventId: widget.event.id),
+                            ),
+                          );
+                          if (result == true && mounted) {
+                            await _refreshData();
+                          }
+                        }
+                        : null,
+                    backgroundColor:
+                        _isCheckedIn
+                            ? Colors.green.shade600
+                            : (_eventHasStarted
+                                ? Colors.purple
+                                : Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 20),
+
+                  _buildGroupSection(),
+
+                  _buildFeedbackSection(),
+                  const SizedBox(height: 20),
+
+                  _buildMatchRevealSection(), // Will be SizedBox.shrink if event not started
+                  _buildMatchAnalysisSection(),
+                  const SizedBox(height: 24),
+
+                  if (_eventHasStarted)
+                    _buildQuestionsSection()
+                  else
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      color: Colors.grey[850],
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.hourglass_top_rounded,
+                              size: 48,
+                              color: Colors.orange.shade600,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              "Event actions & questions available once the event starts.",
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              "Starts at ${DateFormat('EEE, MMM d • h:mm a').format(widget.event.startTime)}",
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.raleway(
+                                color: Colors.grey[500],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 20), // Bottom padding
+                ],
+              ),
+            ),
           ),
         ),
       ),

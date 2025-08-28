@@ -1,6 +1,9 @@
 import 'package:app/bloc/auth/auth_bloc.dart';
 import 'package:app/bloc/event/event_bloc.dart';
 import 'package:app/pages/auth/signin_page.dart';
+import 'package:app/pages/events/accepted_event_page.dart';
+import 'package:app/pages/events/event_detail_page.dart';
+import 'package:app/pages/events/manage_event_page.dart';
 import 'package:app/pages/events/popular_event_page.dart';
 import 'package:app/pages/events/your_event_page.dart';
 import 'package:app/pages/match/match_page.dart';
@@ -12,13 +15,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:ui';
 import 'dart:async';
 import 'package:app/pages/events/create_event_page.dart';
 import 'package:app/pages/events/nearby_event_page.dart';
 import 'package:app/pages/events/applied_event_page.dart';
 import 'package:app/pages/profile/profile_completion_page.dart';
 import 'package:app/pages/chat/user_chat_list_page.dart';
+import 'dart:ui' as ui;
+import '../../models/event.dart';
+import 'package:intl/intl.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -30,16 +35,74 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   Map<String, dynamic>? _userProfile;
   bool _loadingHeader = true;
+  // ignore: unused_field
   bool _profileComplete = false;
+  // ignore: unused_field
   bool _loadingProfile = false;
+  // ignore: unused_field
   bool _profileChecked = false;
+  List<Event> _puneEvents = [];
+  bool _loadingPuneEvents = true;
+
+  List<Event> _liveEvents = [];
+  bool _loadingLiveEvents = true;
+  Map<String, Map<String, dynamic>> _hostProfiles = {};
 
   int _selectedIndex = 0;
+  final ScrollController _scrollController = ScrollController();
+  late final ValueNotifier<bool> _scrolledNotifier;
+  void _scrollListener() {
+    if (!_scrollController.hasClients) return;
+
+    final isScrolled = _scrollController.offset > 50;
+    if (_scrolledNotifier.hasListeners &&
+        isScrolled != _scrolledNotifier.value) {
+      _scrolledNotifier.value = isScrolled;
+    }
+  }
+
+  Future<void> _fetchPuneEvents() async {
+    try {
+      final eventsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('events')
+              .where('endTime', isGreaterThan: DateTime.now())
+              .orderBy('endTime')
+              .limit(10)
+              .get();
+      setState(() {
+        _puneEvents =
+            eventsSnapshot.docs
+                .map((doc) => Event.fromDocumentSnapshot(doc))
+                .toList();
+        _loadingPuneEvents = false;
+      });
+    } catch (e) {
+      debugPrint('Error fetching Popular Events: $e');
+      setState(() {
+        _loadingPuneEvents = false;
+      });
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _fetchUserProfile();
+    _fetchPuneEvents();
+    _fetchLiveEvents();
+    _scrolledNotifier = ValueNotifier<bool>(false);
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    if (_scrollController.hasListeners) {
+      _scrollController.removeListener(_scrollListener);
+    }
+    _scrollController.dispose();
+    _scrolledNotifier.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUserProfile() async {
@@ -69,7 +132,6 @@ class _HomeState extends State<Home> {
         });
 
         if (!profileComplete) {
-          // Navigate to profile completion after a short delay
           Future.delayed(const Duration(milliseconds: 300), () {
             if (mounted) {
               Navigator.push(
@@ -96,6 +158,95 @@ class _HomeState extends State<Home> {
     }
   }
 
+  Future<void> _fetchLiveEvents() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _loadingLiveEvents = true;
+    });
+
+    try {
+      final now = DateTime.now();
+
+      // Get all events where user is host (without time filtering)
+      final hostedEventsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('events')
+              .where('createdBy', isEqualTo: user.uid)
+              .get();
+
+      // Get events where user has accepted application
+      final applicationsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('event_applications')
+              .where('userId', isEqualTo: user.uid)
+              .where('status', isEqualTo: 'accepted')
+              .get();
+
+      final applicationEventIds =
+          applicationsSnapshot.docs
+              .map((doc) => doc['eventId'] as String)
+              .toList();
+
+      List<Event> appliedEvents = [];
+      if (applicationEventIds.isNotEmpty) {
+        final appliedEventsSnapshot =
+            await FirebaseFirestore.instance
+                .collection('events')
+                .where(FieldPath.documentId, whereIn: applicationEventIds)
+                .get();
+
+        appliedEvents =
+            appliedEventsSnapshot.docs
+                .map((doc) => Event.fromDocumentSnapshot(doc))
+                .toList();
+      }
+
+      // Combine all events
+      final allEvents = [
+        ...hostedEventsSnapshot.docs.map(
+          (doc) => Event.fromDocumentSnapshot(doc),
+        ),
+        ...appliedEvents,
+      ];
+
+      // Filter for live events on the client side
+      final allLiveEvents =
+          allEvents
+              .where((event) {
+                return event.startTime.isBefore(now) &&
+                    event.endTime.isAfter(now);
+              })
+              .toSet()
+              .toList();
+
+      // Fetch host profiles
+      final hostIds = allLiveEvents.map((e) => e.createdBy).toSet().toList();
+      final hostsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .where(FieldPath.documentId, whereIn: hostIds)
+              .get();
+
+      final Map<String, Map<String, dynamic>> hostProfiles = {};
+      for (var doc in hostsSnapshot.docs) {
+        hostProfiles[doc.id] = doc.data() as Map<String, dynamic>;
+      }
+
+      setState(() {
+        _liveEvents = allLiveEvents;
+        _hostProfiles = hostProfiles;
+        _loadingLiveEvents = false;
+      });
+    } catch (e) {
+      debugPrint('Error fetching live events: $e');
+      setState(() {
+        _loadingLiveEvents = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -115,295 +266,621 @@ class _HomeState extends State<Home> {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const SignIn()),
-            (route) => false, // Remove all existing routes
+            (route) => false,
           );
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.black,
-        body: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildModernHeader(context, userName),
-                const SizedBox(height: 16),
-                // Quick Actions Row (moved to top)
-                _buildQuickActions(),
-                // Discover Events Section
-                _buildSectionTitle("Discover Events"),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.85,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    children: [
-                      _buildEventCard(
-                        context,
-                        title: "Nearby Events",
-                        icon: Icons.location_on,
-                        gradientColors: [
-                          Colors.blue.shade600,
-                          Colors.blue.shade400,
-                        ],
-                        onTap:
-                            () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const NearbyEventsPage(),
-                              ),
-                            ),
-                        imageUrl:
-                            "https://images.unsplash.com/photo-1645730826845-cd2ddec9984f?q=80&w=2044&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-                      ),
-                      _buildEventCard(
-                        context,
-                        title: "Your Events",
-                        icon: Icons.calendar_today,
-                        gradientColors: [
-                          Colors.purple.shade600,
-                          Colors.purple.shade400,
-                        ],
-                        onTap:
-                            () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const YourEventsPage(),
-                              ),
-                            ),
-                        imageUrl:
-                            "https://images.unsplash.com/photo-1675852102347-fb3f8a2f48b5?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-                      ),
-                      _buildEventCard(
-                        context,
-                        title: "Applied",
-                        icon: Icons.check_circle,
-                        gradientColors: [
-                          Colors.green.shade600,
-                          Colors.green.shade400,
-                        ],
-                        onTap:
-                            () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const AppliedEventsPage(),
-                              ),
-                            ),
-                        imageUrl:
-                            "https://images.unsplash.com/photo-1579457870499-e781952098c6?q=80&w=2073&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-                      ),
-                      _buildEventCard(
-                        context,
-                        title: "Popular",
-                        icon: Icons.trending_up,
-                        gradientColors: [
-                          Colors.orange.shade600,
-                          Colors.orange.shade400,
-                        ],
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const PopularEventsPage(),
-                            ),
-                          );
-                        },
-                        imageUrl:
-                            "https://images.unsplash.com/photo-1702144949391-e905ba8d36dc?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTh8fHBhcnR5JTIwaG9zdHxlbnwwfHwwfHx8MA%3D%3D",
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Create Event Section
-                _buildCreateEventSection(context),
-                const SizedBox(height: 16),
-                // Venue Slider Section
-                Center(
-                  child: Text(
-                    "Host Your Event At...",
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.pinkAccent,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildVenueSlider(),
-                const SizedBox(height: 24),
-              ],
+        extendBodyBehindAppBar: true,
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          centerTitle: true,
+          title: Text(
+            'Match.Box',
+            style: GoogleFonts.poppins(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              // color: Colors.white,
+              letterSpacing: 1.2,
             ),
           ),
+          // title: Text(
+          //   "Match.Box",
+          //   style: GoogleFonts.raleway(fontWeight: FontWeight.bold),
+          // ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          flexibleSpace: ValueListenableBuilder<bool>(
+            valueListenable: _scrolledNotifier,
+            builder: (context, isScrolled, child) {
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  gradient:
+                      isScrolled
+                          ? LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.pinkAccent.shade100,
+                              Colors.purple,
+                              Colors.deepPurple,
+                            ],
+                          )
+                          : null,
+                ),
+              );
+            },
+          ),
+          // actions: [
+          //   GestureDetector(
+          //     onTap: () async {
+          //       await Navigator.push(
+          //         context,
+          //         MaterialPageRoute(
+          //           builder:
+          //               (context) =>
+          //                   const ProfileCompletionPage(coreDetailsSet: true),
+          //         ),
+          //       );
+          //     },
+          //     child: Container(
+          //       margin: const EdgeInsets.only(right: 24),
+          //       padding: const EdgeInsets.all(9),
+          //       decoration: BoxDecoration(
+          //         shape: BoxShape.circle,
+          //         color: Colors.pinkAccent,
+          //       ),
+          //       child: const Icon(Icons.edit, size: 20, color: Colors.white),
+          //     ),
+          //   ),
+          // ],
         ),
-        // bottomNavigationBar: _buildModernBottomNavBar(),
-        bottomNavigationBar: BottomNavbarWidget(),
-      ),
-    );
-  }
-
-  // NEW: Modern Header Design
-  Widget _buildModernHeader(BuildContext context, String name) {
-    // final user = FirebaseAuth.instance.currentUser;
-    return Stack(
-      children: [
-        // Vibrant gradient background
-        Container(
-          width: double.infinity,
-          height: 180,
+        body: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.pinkAccent.shade100,
-                Colors.purple.shade800,
-                Colors.deepPurple.shade900,
+                ui.Color.fromARGB(100, 255, 249, 136),
+                ui.Color.fromARGB(100, 158, 126, 249),
+                ui.Color.fromARGB(100, 104, 222, 245),
               ],
             ),
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(30),
-              bottomRight: Radius.circular(30),
-            ),
           ),
-        ),
-        // Blurred overlay for effect
-        Positioned.fill(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(color: Colors.black.withValues(alpha: 0.15)),
-          ),
-        ),
-        // Content
-        Positioned.fill(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // App name left-aligned at the top
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 4),
-                      Text(
-                        'Match.Box',
-                        style: GoogleFonts.poppins(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.2,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 30,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        //greeting section
+                        Row(
+                          children: [
+                            Text(
+                              'Hey, ',
+                              style: GoogleFonts.poppins(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Flexible(
+                              child: Text(
+                                userName.isNotEmpty
+                                    ? userName[0].toUpperCase() +
+                                        userName.substring(1)
+                                    : '',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.pinkAccent,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              ' !',
+                              style: GoogleFonts.poppins(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Find your perfect match, or your next adventure.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontWeight: FontWeight.w400,
+
+                        Text(
+                          'Discover fun events and meet amazing people near you.',
+                          style: GoogleFonts.poppins(
+                            // color: Colors.purple,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                // Profile avatar removed from here
-              ],
+                  _buildLiveEvents(),
+                  const SizedBox(height: 10),
+                  //add card with hello message and username
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Card(
+                      elevation: 2,
+                      color: Color(0xFF2D0B5A),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(30),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const NearbyEventsPage(),
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Icon(Icons.explore, color: Colors.pinkAccent),
+                              SizedBox(width: 12),
+                              Text(
+                                'Explore Nearby Events',
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Spacer(),
+                              Icon(Icons.chevron_right, color: Colors.grey),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // _buildQuickActions(),
+
+                  // Venue Slider Section
+                  _buildCreateEventSection(context),
+                  const SizedBox(height: 10),
+                  _buildPopularEvents(),
+                  // const SizedBox(height: 10),
+
+                  // _buildSectionTitle(
+                  //   "Discover Events",
+                  //   onPressed: () {
+                  // Navigator.push(
+                  //   context,
+                  //   MaterialPageRoute(builder: (context) => const AllEventsPage()),
+                  // );
+                  //   },
+                  // ),
+                  // const SizedBox(height: 10),
+                  // GridView.count(
+                  //   padding: EdgeInsets.only(right: 7, left: 7),
+                  //   shrinkWrap: true,
+                  //   physics: const NeverScrollableScrollPhysics(),
+                  //   crossAxisCount: 2,
+                  //   childAspectRatio: 0.85,
+                  //   crossAxisSpacing: 16,
+                  //   mainAxisSpacing: 16,
+                  //   children: [
+                  // _buildEventCard(
+                  //   context,
+                  //   title: "Nearby Events",
+                  //   icon: Icons.location_on,
+                  //   gradientColors: [
+                  //     Colors.blue.shade600,
+                  //     Colors.blue.shade400,
+                  //   ],
+                  //   onTap:
+                  //       () => Navigator.push(
+                  //         context,
+                  //         MaterialPageRoute(
+                  //           builder: (context) => const NearbyEventsPage(),
+                  //         ),
+                  //       ),
+                  //   imageUrl:
+                  //       "https://images.unsplash.com/photo-1645730826845-cd2ddec9984f?q=80&w=2044&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+                  // ),
+                  // _buildEventCard(
+                  //   context,
+                  //   title: "Your Events",
+                  //   icon: Icons.calendar_today,
+                  //   gradientColors: [
+                  //     Colors.purple.shade600,
+                  //     Colors.purple.shade400,
+                  //   ],
+                  //   onTap:
+                  //       () => Navigator.push(
+                  //         context,
+                  //         MaterialPageRoute(
+                  //           builder: (context) => const YourEventsPage(),
+                  //         ),
+                  //       ),
+                  //   imageUrl:
+                  //       "https://images.unsplash.com/photo-1675852102347-fb3f8a2f48b5?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+                  // ),
+                  // _buildEventCard(
+                  //   context,
+                  //   title: "Applied",
+                  //   icon: Icons.check_circle,
+                  //   gradientColors: [
+                  //     Colors.green.shade600,
+                  //     Colors.green.shade400,
+                  //   ],
+                  //   onTap:
+                  //       () => Navigator.push(
+                  //         context,
+                  //         MaterialPageRoute(
+                  //           builder: (context) => const AppliedEventsPage(),
+                  //         ),
+                  //       ),
+                  //   imageUrl:
+                  //       "https://images.unsplash.com/photo-1579457870499-e781952098c6?q=80&w=2073&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+                  // ),
+                  // _buildEventCard(
+                  //   context,
+                  //   title: "Popular",
+                  //   icon: Icons.trending_up,
+                  //   gradientColors: [
+                  //     Colors.orange.shade600,
+                  //     Colors.orange.shade400,
+                  //   ],
+                  //   onTap: () {
+                  //     Navigator.push(
+                  //       context,
+                  //       MaterialPageRoute(
+                  //         builder: (context) => const PopularEventsPage(),
+                  //       ),
+                  //     );
+                  //   },
+                  //   imageUrl:
+                  //       "https://images.unsplash.com/photo-1702144949391-e905ba8d36dc?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTh8fHBhcnR5JTIwaG9zdHxlbnwwfHwwfHx8MA%3D%3D",
+                  // ),
+                  //   ],
+                  // ),
+                  const SizedBox(height: 30),
+
+                  // Create Event Section
+                  // Center(
+                  //   child: Text(
+                  //     "Host Your Event At...",
+                  //     style: GoogleFonts.poppins(
+                  //       fontSize: 18,
+                  //       fontWeight: FontWeight.bold,
+                  //       color: Colors.pinkAccent,
+                  //     ),
+                  //   ),
+                  // ),
+                  // const SizedBox(height: 16),
+                  // _buildVenueSlider(),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
+          ),
+
+          // CustomScrollView(
+          //   slivers: [
+          //     SliverAppBar(
+          //       automaticallyImplyLeading: false,
+          //       // expandedHeight: MediaQuery.of(context).size.height * 0.11,
+          //       pinned: false,
+          //       floating: false,
+          //       backgroundColor: Colors.transparent,
+          //       flexibleSpace: FlexibleSpaceBar(
+          //         background: _buildModernHeader(context, userName),
+          //       ),
+          //     ),
+          //     SliverToBoxAdapter(
+
+          //     ),
+          //     // ),
+          //   ],
+          // ),
+        ),
+      ),
+    );
+  }
+
+  // Venue Slider (Where events can be hosted)
+  // Widget _buildVenueSlider() {
+  //   final List<Map<String, String>> venues = [
+  //     {
+  //       'title': 'Trendy Rooftop',
+  //       'image':
+  //           'https://plus.unsplash.com/premium_photo-1661715804059-cc71a28f2c34?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+  //     },
+  //     {
+  //       'title': 'Cozy Coffee House',
+  //       'image':
+  //           'https://texascoffeeschool.com/wp-content/uploads/2024/08/1418-e1723733846245.jpg',
+  //     },
+  //     {
+  //       'title': 'Art Gallery',
+  //       'image':
+  //           'https://srv-2.eden-gallery.com/wp-content/uploads/sites/15/2019/12/crowd-in-gallery.jpg',
+  //     },
+  //     {
+  //       'title': 'Chic Bar & Lounge',
+  //       'image':
+  //           'https://thumbs.dreamstime.com/b/young-people-cocktails-nightclub-group-best-friends-partying-pub-toasting-drinks-85710542.jpg',
+  //     },
+  //     {
+  //       'title': 'Outdoor Park',
+  //       'image':
+  //           'https://media-api.xogrp.com/images/e5abd221-4871-4172-af96-564f1cdb7218~cr_50.5.1974.1294?quality=50',
+  //     },
+  //   ];
+  //   return _AutoVenueSlider(venues: venues);
+  // }
+
+  // Widget _buildQuickActions() {
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+  //     child: Row(
+  //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //       children: [
+  //         Expanded(
+  //           child: _buildQuickActionButton(
+  //             icon: Icons.people,
+  //             label: "Matches",
+  //             onTap: () {
+  //               Navigator.push(
+  //                 context,
+  //                 MaterialPageRoute(builder: (context) => MatchesPage()),
+  //               );
+  //             },
+  //             color: Colors.pink,
+  //           ),
+  //         ),
+  //         Expanded(
+  //           child: _buildQuickActionButton(
+  //             icon: Icons.chat,
+  //             label: "Messages",
+  //             onTap: () {
+  //               Navigator.push(
+  //                 context,
+  //                 MaterialPageRoute(
+  //                   builder: (context) => const UserChatListPage(),
+  //                 ),
+  //               );
+  //             },
+  //             color: Colors.blue,
+  //           ),
+  //         ),
+  //         Expanded(
+  //           // Added Expanded
+  //           child: _buildQuickActionButton(
+  //             icon: Icons.add_circle,
+  //             label: "Questions",
+  //             onTap: () {
+  //               Navigator.push(
+  //                 context,
+  //                 MaterialPageRoute(builder: (context) => CreateQuestionPage()),
+  //               );
+  //             },
+  //             color: Colors.green,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  Widget _buildLiveEvents() {
+    if (_loadingLiveEvents) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.pinkAccent),
+      );
+    }
+
+    if (_liveEvents.isEmpty) {
+      return Container(); // Don't show anything if no live events
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        _buildSectionTitle(
+          "Your Ongoing Events",
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const YourEventsPage()),
+            );
+          },
+        ),
+        const SizedBox(height: 5),
+        SizedBox(
+          height: 250,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _liveEvents.length,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemBuilder: (context, index) {
+              final event = _liveEvents[index];
+              return _buildLiveEventCard(event);
+            },
           ),
         ),
       ],
     );
   }
 
-  // Venue Slider (Where events can be hosted)
-  Widget _buildVenueSlider() {
-    final List<Map<String, String>> venues = [
-      {
-        'title': 'Trendy Rooftop',
-        'image':
-            'https://plus.unsplash.com/premium_photo-1661715804059-cc71a28f2c34?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-      },
-      {
-        'title': 'Cozy Coffee House',
-        'image':
-            'https://texascoffeeschool.com/wp-content/uploads/2024/08/1418-e1723733846245.jpg',
-      },
-      {
-        'title': 'Art Gallery',
-        'image':
-            'https://srv-2.eden-gallery.com/wp-content/uploads/sites/15/2019/12/crowd-in-gallery.jpg',
-      },
-      {
-        'title': 'Chic Bar & Lounge',
-        'image':
-            'https://thumbs.dreamstime.com/b/young-people-cocktails-nightclub-group-best-friends-partying-pub-toasting-drinks-85710542.jpg',
-      },
-      {
-        'title': 'Outdoor Park',
-        'image':
-            'https://media-api.xogrp.com/images/e5abd221-4871-4172-af96-564f1cdb7218~cr_50.5.1974.1294?quality=50',
-      },
-    ];
-    return _AutoVenueSlider(venues: venues);
-  }
+  // Add this widget to build individual live event cards
+  Widget _buildLiveEventCard(Event event) {
+    final hostProfile = _hostProfiles[event.createdBy];
+    final hostName = hostProfile?['name'] ?? 'Unknown';
+    final hostPhoto = hostProfile?['photoUrl'];
+    final isHost = event.createdBy == FirebaseAuth.instance.currentUser?.uid;
 
-  // NEW: Quick Action Buttons
-  Widget _buildQuickActions() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildQuickActionButton(
-            icon: Icons.people,
-            label: "Matches",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => MatchesPage()),
-              );
-            },
-            color: Colors.pink,
+    return InkWell(
+       onTap: () {
+      if (isHost) {
+        // Navigate to ManageEventPage for events hosted by the user
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ManageEventPage(eventId: event.id),
           ),
-          // _buildQuickActionButton(
-          //   icon: Icons.favorite,
-          //   label: "Likes",
-          //   onTap: () {},
-          //   color: Colors.red,
-          // ),
-          _buildQuickActionButton(
-            icon: Icons.chat,
-            label: "Messages",
-            onTap:
-                () => {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const UserChatListPage(),
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AcceptedEventDetailPage(event: event),
+          ),
+        );
+      }
+    },
+      child: Container(
+        width: 240,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                    image: DecorationImage(
+                      image: NetworkImage(
+                        event.cover.isNotEmpty
+                            ? event.cover
+                            : "https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1350&q=80",
+                      ),
+                      fit: BoxFit.cover,
                     ),
                   ),
-                },
-            color: Colors.blue,
-          ),
-          // Add this button for testing question creation
-          _buildQuickActionButton(
-            icon: Icons.add_circle,
-            label: "Create Question",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => CreateQuestionPage()),
-              );
-            },
-            color: Colors.green,
-          ),
-        ],
+                ),
+                Positioned(
+                  left: 10,
+                  top: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.pinkAccent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      "LIVE",
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Event Details
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    event.title,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 12,
+                        backgroundImage:
+                            hostProfile?['photoURL'] != null
+                                ? NetworkImage(hostProfile!['photoURL'])
+                                : null,
+                        child:
+                            hostProfile?['photoURL'] == null
+                                ? Icon(
+                                  Icons.person,
+                                  size: 16,
+                                  color: Colors.white,
+                                )
+                                : null,
+                        backgroundColor:
+                            hostProfile?['photoURL'] == null
+                                ? Colors.grey
+                                : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isHost ? "Hosted by You" : "Hosted by $hostName",
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        size: 12,
+                        color: Colors.pinkAccent,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          event.city.isNotEmpty ? event.city : "City",
+                          style: GoogleFonts.poppins(fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -436,9 +913,9 @@ class _HomeState extends State<Home> {
   }
 
   // NEW: Section Title
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, {required VoidCallback onPressed}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
       child: Row(
         children: [
           Text(
@@ -450,11 +927,11 @@ class _HomeState extends State<Home> {
           ),
           const Spacer(),
           TextButton(
-            onPressed: () {},
+            onPressed: onPressed,
             child: Text(
               "See all",
               style: GoogleFonts.poppins(
-                color: Colors.purple,
+                color: Colors.pinkAccent,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -576,125 +1053,179 @@ class _HomeState extends State<Home> {
     );
   }
 
-  // NEW: Modern Bottom Navigation Bar
-  Widget _buildModernBottomNavBar() {
-    final user = FirebaseAuth.instance.currentUser;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+  Widget _buildPopularEvents() {
+    if (_loadingPuneEvents) {
+      return const Center(
+        child: Center(
+          child: CircularProgressIndicator(color: Colors.pinkAccent),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.2),
-            blurRadius: 10,
-            spreadRadius: 5,
+      );
+    }
+
+    if (_puneEvents.isEmpty) {
+      return Container();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 10),
+        _buildSectionTitle(
+          "Popular Events",
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const PopularEventsPage(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 5),
+        SizedBox(
+          height: 220,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _puneEvents.length,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemBuilder: (context, index) {
+              final event = _puneEvents[index];
+              return _buildPopularEventCard(event);
+            },
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
         ),
-        child: BottomNavigationBar(
-          items: [
-            BottomNavigationBarItem(
-              icon: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
+      ],
+    );
+  }
+
+  Widget _buildPopularEventCard(Event event) {
+    print(event);
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EventDetailPage(event: event),
+          ),
+        );
+      },
+      child: Container(
+        width: 240,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                    image: DecorationImage(
+                      image: NetworkImage(
+                        event.cover.isNotEmpty
+                            ? event.cover
+                            : "https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1350&q=80",
+                      ),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
-                decoration: BoxDecoration(
-                  color:
-                      _selectedIndex == 0
-                          ? Colors.purple.withValues(alpha: 0.15)
-                          : Colors.transparent,
-                  borderRadius: BorderRadius.circular(20),
+                Positioned(
+                  left: 10,
+                  top: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 4,
+                          offset: Offset(2, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          DateFormat.MMM().format(event.startTime),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          DateFormat.d().format(event.startTime),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                child: Icon(
-                  Icons.home,
-                  color: _selectedIndex == 0 ? Colors.purple : Colors.grey,
-                ),
-              ),
-              label: "",
+              ],
             ),
-            BottomNavigationBarItem(
-              icon: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color:
-                      _selectedIndex == 1
-                          ? Colors.purple.withValues(alpha: 0.15)
-                          : Colors.transparent,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  Icons.chat,
-                  color: _selectedIndex == 1 ? Colors.purple : Colors.grey,
-                ),
+
+            // Event Details
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    event.title,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      // color: Colors.purple
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        size: 12,
+                        color: Colors.pinkAccent,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          event.city.isNotEmpty ? event.city : "City",
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            // color: Colors.white70,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // const SizedBox(height: 4),
+                ],
               ),
-              label: "",
-            ),
-            // Profile avatar as third item
-            BottomNavigationBarItem(
-              icon: FutureBuilder<DocumentSnapshot>(
-                future:
-                    FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user?.uid)
-                        .get(),
-                builder: (context, snapshot) {
-                  String? photoUrl;
-                  if (snapshot.hasData && snapshot.data!.exists) {
-                    final data = snapshot.data!.data() as Map<String, dynamic>?;
-                    photoUrl = data?['photoURL'] as String?;
-                  }
-                  return CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    backgroundImage:
-                        (photoUrl != null && photoUrl.isNotEmpty)
-                            ? NetworkImage(photoUrl)
-                            : null,
-                    child:
-                        (photoUrl == null || photoUrl.isEmpty)
-                            ? Icon(Icons.person, color: Colors.grey, size: 20)
-                            : null,
-                  );
-                },
-              ),
-              label: "",
             ),
           ],
-          currentIndex: _selectedIndex,
-          selectedItemColor: Colors.purple,
-          unselectedItemColor: Colors.grey,
-          showSelectedLabels: false,
-          showUnselectedLabels: false,
-          type: BottomNavigationBarType.fixed,
-          elevation: 0,
-          onTap: (index) {
-            if (index == 1) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const UserChatListPage(),
-                ),
-              );
-            } else if (index == 2) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfilePage()),
-              );
-            } else {
-              _onItemTapped(index);
-            }
-          },
         ),
       ),
     );
@@ -716,7 +1247,7 @@ class _HomeState extends State<Home> {
                   const Icon(
                     Icons.event_available,
                     size: 64,
-                    color: Colors.deepPurple,
+                    color: Color(0xFF2D0B5A),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -746,7 +1277,7 @@ class _HomeState extends State<Home> {
                       TextButton(
                         onPressed: () => Navigator.pop(context),
                         style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey,
+                          // foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24,
                             vertical: 12,
@@ -769,7 +1300,8 @@ class _HomeState extends State<Home> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
+                          foregroundColor: Colors.white,
+                          backgroundColor: Colors.pinkAccent,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24,
                             vertical: 12,
@@ -786,11 +1318,11 @@ class _HomeState extends State<Home> {
     );
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
+  // void _onItemTapped(int index) {
+  //   setState(() {
+  //     _selectedIndex = index;
+  //   });
+  // }
 
   Widget _buildCreateEventSection(BuildContext context) {
     return Padding(

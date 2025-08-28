@@ -1,22 +1,33 @@
 import 'package:app/bloc/auth/auth_bloc.dart';
 import 'package:app/bloc/event/event_bloc.dart';
 import 'package:app/firebase_options.dart';
+import 'package:app/pages/layout/main_layout.dart';
 import 'package:app/pages/profile/profile_completion_page.dart';
 import 'package:app/pages/auth/entry_page.dart';
 import 'package:app/pages/events/nearby_event_page.dart';
 import 'package:app/pages/home/home.dart';
 import 'package:app/services/auth_repo.dart';
 import 'package:app/services/firestore_service.dart';
+import 'package:app/theme/theme_manager.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
   await dotenv.load(fileName: ".env");
+  try {
+    final prefs = await SharedPreferences.getInstance();
+  } catch (e) {
+    debugPrint('SharedPreferences initialization error: $e');
+  }
+  
   runApp(MyApp());
 }
 
@@ -30,29 +41,50 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return RepositoryProvider(
       create: (context) => AuthRepository(),
-      child: MultiBlocProvider(
+      child: MultiProvider(
         providers: [
-          BlocProvider(
-            create: (context) => EventBloc(),
-            child: NearbyEventsPage(),
-          ),
-          BlocProvider(
-            create: (context) => AuthBloc(_authRepository, firestoreService),
-          ),
+          ChangeNotifierProvider(create: (context) => ThemeManager()),
         ],
-        child: MaterialApp(
-          title: 'MatchBox',
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.deepPurple,
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-          ),
-
-          debugShowCheckedModeBanner: false,
-          // Updated home with AuthWrapper
-          home: const AuthWrapper(),
+        child: Consumer<ThemeManager>(
+          builder: (context, themeManager, child) {
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider(
+                  create: (context) => EventBloc(),
+                  child: NearbyEventsPage(),
+                ),
+                BlocProvider(
+                  create:
+                      (context) => AuthBloc(_authRepository, firestoreService),
+                ),
+              ],
+              child: MaterialApp(
+                title: 'MatchBox',
+                theme: ThemeData(
+                  colorScheme: ColorScheme.fromSeed(
+                    seedColor: Colors.deepPurple,
+                    brightness:
+                        themeManager.isDarkMode
+                            ? Brightness.dark
+                            : Brightness.light,
+                  ),
+                  useMaterial3: true,
+                ),
+                darkTheme: ThemeData(
+                  colorScheme: ColorScheme.fromSeed(
+                    seedColor: Colors.deepPurple,
+                    brightness: Brightness.dark,
+                  ),
+                  useMaterial3: true,
+                ),
+                themeMode:
+                    themeManager.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+                debugShowCheckedModeBanner: false,
+                // Updated home with AuthWrapper
+                home: const AuthWrapper(),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -99,7 +131,7 @@ class AuthWrapper extends StatelessWidget {
                 }
 
                 if (profileSnapshot.hasData && profileSnapshot.data!) {
-                  return const Home();
+                  return const MainLayout();
                 } else {
                   return const ProfileCompletionPage();
                 }

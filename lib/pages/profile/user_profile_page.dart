@@ -1,7 +1,10 @@
+import 'dart:ui' as ui;
+
 import 'package:app/pages/chat/chat_page.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class UserProfilePage extends StatelessWidget {
   final String userId;
@@ -11,26 +14,51 @@ class UserProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      // backgroundColor:
+      //     Theme.of(context).brightness == Brightness.dark
+      //         ? Colors.black
+      //         : Colors.blueGrey[50],
+      // backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(userId)
+                .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          
-          if (!snapshot.hasData || snapshot.data == null || !snapshot.data!.exists) {
-            return const Center(child: Text('User not found', style: TextStyle(color: Colors.white)));
-          }
-          
-          final userData = snapshot.data!.data() as Map<String, dynamic>;
-          return _buildProfile(context, userData);
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  ui.Color.fromARGB(100, 255, 249, 136),
+                  ui.Color.fromARGB(100, 158, 126, 249),
+                  ui.Color.fromARGB(100, 104, 222, 245),
+                ],
+              ),
+            ),
+            child: _buildProfileLayout(context, snapshot),
+          );
         },
       ),
     );
+  }
+
+  Widget _buildProfileLayout(BuildContext context, snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (!snapshot.hasData || snapshot.data == null || !snapshot.data!.exists) {
+      return const Center(
+        child: Text('User not found', style: TextStyle(color: Colors.white)),
+      );
+    }
+
+    final userData = snapshot.data!.data() as Map<String, dynamic>;
+    return _buildProfile(context, userData);
   }
 
   Widget _buildProfile(BuildContext context, Map<String, dynamic> userData) {
@@ -38,7 +66,10 @@ class UserProfilePage extends StatelessWidget {
     final name = userData['name'] ?? 'User';
     final introduction = userData['introduction'] ?? '';
     final gender = userData['gender'] ?? '';
-    final dob = userData['dob'] is Timestamp ? (userData['dob'] as Timestamp).toDate() : null;
+    final dob =
+        userData['dob'] is Timestamp
+            ? (userData['dob'] as Timestamp).toDate()
+            : null;
     final preference = userData['preference'] ?? '';
     final hobbies = (userData['hobbies'] as List?)?.cast<String>() ?? [];
 
@@ -47,7 +78,8 @@ class UserProfilePage extends StatelessWidget {
     if (dob != null) {
       final now = DateTime.now();
       int years = now.year - dob.year;
-      if (now.month < dob.month || (now.month == dob.month && now.day < dob.day)) {
+      if (now.month < dob.month ||
+          (now.month == dob.month && now.day < dob.day)) {
         years--;
       }
       age = '$years years';
@@ -64,7 +96,6 @@ class UserProfilePage extends StatelessWidget {
             background: Stack(
               fit: StackFit.expand,
               children: [
-                // Profile background
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -74,7 +105,7 @@ class UserProfilePage extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 // Profile image
                 if (photoUrl != null && photoUrl.isNotEmpty)
                   Image.network(
@@ -84,7 +115,7 @@ class UserProfilePage extends StatelessWidget {
                     width: double.infinity,
                     height: double.infinity,
                   ),
-                
+
                 // Dark overlay
                 Container(
                   decoration: BoxDecoration(
@@ -93,12 +124,12 @@ class UserProfilePage extends StatelessWidget {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.7)
+                        Colors.black.withValues(alpha: 0.7),
                       ],
                     ),
                   ),
                 ),
-                
+
                 // User name and basic info
                 Positioned(
                   bottom: 16,
@@ -107,7 +138,7 @@ class UserProfilePage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        name,
+                        toBeginningOfSentenceCase(name) ?? name,
                         style: GoogleFonts.poppins(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -158,10 +189,10 @@ class UserProfilePage extends StatelessWidget {
               ],
             ),
           ),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
+          // leading: IconButton(
+          //   icon: const Icon(Icons.arrow_back, color: Colors.white),
+          //   onPressed: () => Navigator.of(context).pop(),
+          // ),
         ),
         SliverList(
           delegate: SliverChildListDelegate([
@@ -172,78 +203,112 @@ class UserProfilePage extends StatelessWidget {
                 children: [
                   // Introduction
                   if (introduction.isNotEmpty) ...[
-                    Text(
-                      'About Me',
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'About Me',
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            introduction,
+                            style: GoogleFonts.poppins(fontSize: 16, height: 1.5),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      introduction,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        color: Colors.white70,
-                        height: 1.5,
-                      ),
-                    ),
+
                     const SizedBox(height: 24),
                   ],
-                  
+
                   // Hobbies
                   if (hobbies.isNotEmpty) ...[
-                    Text(
-                      'Favorite Activities',
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    // Text(
+                    //   'Favorite Activities',
+                    //   style: GoogleFonts.poppins(
+                    //     fontSize: 20,
+                    //     fontWeight: FontWeight.bold,
+                    //   ),
+                    // ),
+                    // const SizedBox(height: 16),
+                    // _buildHobbiesGrid(hobbies),
+                    // const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 10,
+                        ),
+                        margin: const EdgeInsets.all(5),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color:
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.black26
+                                  : Colors.white70,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionTitle('FAVOURITE ACTIVITIES'),
+                            const SizedBox(height: 16),
+                            _buildHobbiesGrid(hobbies),
+                            const SizedBox(height: 40),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    _buildHobbiesGrid(hobbies),
-                    const SizedBox(height: 24),
                   ],
-                  
+
                   // Action buttons
-                  Row(
-  children: [
-    Expanded(
-      child: ElevatedButton.icon(
-        icon: const Icon(Icons.message),
-        label: const Text('Send Message'),
-        onPressed: () {
-          Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder:
-            (context) =>
-                ChatPage(matchedUserId: userId, matchedUserName: name),
-      ),
-    );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.purple,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    ),
-    const SizedBox(width: 16), // This goes between the two buttons
-    // IconButton(
-    //   icon: const Icon(Icons.favorite_border, size: 32),
-    //   color: Colors.pink,
-    //   onPressed: () {
-    //     // Implement like functionality
-    //   },
-    // ),
-  ],
-)
+                  // Row(
+                  //   children: [
+                  //     Expanded(
+                  //       child: ElevatedButton.icon(
+                  //         icon: const Icon(Icons.message),
+                  //         label: const Text('Send Message'),
+                  //         onPressed: () {
+                  //           Navigator.push(
+                  //             context,
+                  //             MaterialPageRoute(
+                  //               builder:
+                  //                   (context) => ChatPage(
+                  //                     matchedUserId: userId,
+                  //                     matchedUserName: name,
+                  //                   ),
+                  //             ),
+                  //           );
+                  //         },
+                  //         style: ElevatedButton.styleFrom(
+                  //           backgroundColor: Colors.purple,
+                  //           foregroundColor: Colors.white,
+                  //           padding: const EdgeInsets.symmetric(vertical: 16),
+                  //           shape: RoundedRectangleBorder(
+                  //             borderRadius: BorderRadius.circular(12),
+                  //           ),
+                  //         ),
+                  //       ),
+                  //     ),
+                  //     const SizedBox(
+                  //       width: 16,
+                  //     ), // This goes between the two buttons
+                  //     IconButton(
+                  //       icon: const Icon(Icons.favorite_border, size: 32),
+                  //       color: Colors.pink,
+                  //       onPressed: () {
+                  //         // Implement like functionality
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
                 ],
               ),
             ),
@@ -253,27 +318,36 @@ class UserProfilePage extends StatelessWidget {
     );
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0, bottom: 4.0, left: 7),
+      child: Text(
+        title,
+        style: GoogleFonts.poppins(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.purple,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
   Widget _buildHobbiesGrid(List<String> hobbies) {
     return Wrap(
       spacing: 12,
       runSpacing: 12,
-      children: hobbies.map((hobby) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.purple),
-          ),
-          child: Text(
-            hobby,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              color: Colors.white,
-            ),
-          ),
-        );
-      }).toList(),
+      children:
+          hobbies.map((hobby) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: Colors.purple),
+              ),
+              child: Text(hobby, style: GoogleFonts.poppins(fontSize: 16)),
+            );
+          }).toList(),
     );
   }
 }

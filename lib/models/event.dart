@@ -14,9 +14,10 @@ class Event {
   final String guestType;
   final String locationType;
   final int guestCount;
-  final String city;  
+  final String city;
   final String state;
-  final List<String> cityKeywords; 
+  final List<String> cityKeywords;
+  final String cover;
 
   final List<String> questionnaire;
   final int applicationCount;
@@ -40,6 +41,7 @@ class Event {
     required this.guestCount,
     required this.questionnaire,
     required this.applicationCount,
+    required this.cover,
   });
 
   factory Event.fromDocumentSnapshot(DocumentSnapshot doc) {
@@ -63,6 +65,7 @@ class Event {
       guestCount: data['guestCount'] ?? 0,
       questionnaire: List<String>.from(data['questionnaire'] ?? []),
       applicationCount: data['applicationCount'] ?? 0,
+      cover: data['cover'] ?? '',
     );
   }
 
@@ -81,36 +84,38 @@ class Event {
       guestType: guestType,
       locationType: locationType,
       guestCount: guestCount,
-      city:city,
-      state:state,
+      city: city,
+      state: state,
       cityKeywords: cityKeywords,
       questionnaire: questionnaire,
       applicationCount: applicationCount ?? this.applicationCount,
+      cover: cover,
     );
   }
 
   factory Event.fromMap(Map<String, dynamic> data) {
-  return Event(
-    id: data['id'] ?? '',
-    title: data['title'] ?? '',
-    description: data['description'] ?? '',
-    location: data['location'] ?? GeoPoint(0, 0),
-    startTime: (data['startTime'] as Timestamp).toDate(),
-    endTime: (data['endTime'] as Timestamp).toDate(),
-    createdBy: data['createdBy'] ?? '',
-    createdAt: (data['createdAt'] as Timestamp).toDate(),
-    updatedAt: (data['updatedAt'] as Timestamp).toDate(),
-    matchingType: data['matchingType'] ?? 'platonic',
-    guestType: data['guestType'] ?? 'friends',
-    city: data['city'] ?? '',
-    state: data['state'] ?? '',
-    cityKeywords: List<String>.from(data['cityKeywords'] ?? []),
-    locationType: data['locationType'] ?? 'home',
-    guestCount: data['guestCount'] ?? 0,
-    questionnaire: List<String>.from(data['questionnaire'] ?? []),
-    applicationCount: data['applicationCount'] ?? 0,
-  );
-}
+    return Event(
+      id: data['id'] ?? '',
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
+      location: data['location'] ?? GeoPoint(0, 0),
+      startTime: (data['startTime'] as Timestamp).toDate(),
+      endTime: (data['endTime'] as Timestamp).toDate(),
+      createdBy: data['createdBy'] ?? '',
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      matchingType: data['matchingType'] ?? 'platonic',
+      guestType: data['guestType'] ?? 'friends',
+      city: data['city'] ?? '',
+      state: data['state'] ?? '',
+      cityKeywords: List<String>.from(data['cityKeywords'] ?? []),
+      locationType: data['locationType'] ?? 'home',
+      guestCount: data['guestCount'] ?? 0,
+      questionnaire: List<String>.from(data['questionnaire'] ?? []),
+      applicationCount: data['applicationCount'] ?? 0,
+      cover: data['cover'] ?? '',
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -128,8 +133,9 @@ class Event {
       'guestCount': guestCount,
       'questionnaire': questionnaire,
       'applicationCount': applicationCount,
-      'city':city,
-      'state':state,
+      'cover': cover,
+      'city': city,
+      'state': state,
       'cityKeywords': cityKeywords,
     };
   }

@@ -56,18 +56,18 @@ class EntryPage extends StatelessWidget {
                   // Skip button (top right)
                   Align(
                     alignment: Alignment.topRight,
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => const SignIn()),
-                        );
-                      },
-                      child: const Text(
-                        "Skip",
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                    ),
+                    // child: TextButton(
+                    //   onPressed: () {
+                    //     Navigator.pushReplacement(
+                    //       context,
+                    //       MaterialPageRoute(builder: (context) => const SignIn()),
+                    //     );
+                    //   },
+                    //   child: const Text(
+                    //     "Skip",
+                    //     style: TextStyle(color: Colors.white70),
+                    //   ),
+                    // ),
                   ),
                   
                   // Main content
@@ -76,40 +76,40 @@ class EntryPage extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         // Animated logo
-                        TweenAnimationBuilder(
-                          tween: Tween<double>(begin: 0, end: 1),
-                          duration: const Duration(seconds: 1),
-                          builder: (context, value, child) {
-                            return Transform.scale(
-                              scale: value,
-                              child: Container(
-                                padding: const EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      const Color(0xFFFF4081).withAlpha(204), // 0.8 opacity
-                                      const Color(0xFFFF4081).withAlpha(51),  // 0.2 opacity
-                                    ],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFFF4081).withAlpha(102), // 0.4 opacity
-                                      blurRadius: 30,
-                                      spreadRadius: 10,
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.favorite,
-                                  color: Colors.white,
-                                  size: 80,
-                                ),
-                              ),
-                            );
-                          },
-                          child: const SizedBox(), // Placeholder child
-                        ),
+                        // TweenAnimationBuilder(
+                        //   tween: Tween<double>(begin: 0, end: 1),
+                        //   duration: const Duration(seconds: 1),
+                        //   builder: (context, value, child) {
+                        //     return Transform.scale(
+                        //       scale: value,
+                        //       child: Container(
+                        //         padding: const EdgeInsets.all(24),
+                        //         decoration: BoxDecoration(
+                        //           shape: BoxShape.circle,
+                        //           gradient: RadialGradient(
+                        //             colors: [
+                        //               const Color(0xFFFF4081).withAlpha(204), // 0.8 opacity
+                        //               const Color(0xFFFF4081).withAlpha(51),  // 0.2 opacity
+                        //             ],
+                        //           ),
+                        //           boxShadow: [
+                        //             BoxShadow(
+                        //               color: const Color(0xFFFF4081).withAlpha(102), // 0.4 opacity
+                        //               blurRadius: 30,
+                        //               spreadRadius: 10,
+                        //             ),
+                        //           ],
+                        //         ),
+                        //         child: const Icon(
+                        //           Icons.favorite,
+                        //           color: Colors.white,
+                        //           size: 80,
+                        //         ),
+                        //       ),
+                        //     );
+                        //   },
+                        //   child: const SizedBox(), // Placeholder child
+                        // ),
                         const SizedBox(height: 40),
                         
                         // App name with glow effect
@@ -125,9 +125,10 @@ class EntryPage extends StatelessWidget {
                           child: Text(
                             "MATCH.BOX",
                             style: GoogleFonts.poppins(
-                              fontSize: 36,
+                              fontSize: 50,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.5,
+                              color: Colors.white,
                               height: 1.2,
                             ),
                           ),

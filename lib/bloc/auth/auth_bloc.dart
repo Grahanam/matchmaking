@@ -28,46 +28,6 @@ Future<void> _navigateToProfile(
     emit(ProfileIncomplete(event.userId));
   }
 
-  // Future<void> _signUpRequested(
-  //   SignUpRequested event,
-  //   Emitter<AuthState> emit,
-  // ) async {
-  //   emit(Loading());
-  //   try {
-  //     await authRepo.signUp(
-  //       email: event.email,
-  //       password: event.password
-  //     );
-  //     final user = FirebaseAuth.instance.currentUser;
-  //     if (user != null) {
-  //       // Immediately navigate to profile completion
-  //       add(NavigateToProfile(user.uid));
-  //     }
-  //   } catch (e) {
-  //     emit(AuthError(e.toString()));
-  //     emit(UnAuthenticated());
-  //   }
-  // }
-
-  // Update other methods similarly
-//   Future<void> _googleSignInRequested(
-//     GoogleSignInRequested event,
-//     Emitter<AuthState> emit,
-//   ) async {
-//     emit(Loading());
-//     try {
-//       await authRepo.signInWithGoogle();
-//       final user = FirebaseAuth.instance.currentUser;
-//       if (user != null) {
-//         // Immediately navigate to profile completion
-//         add(NavigateToProfile(user.uid));
-//       }
-//     } catch (e) {
-//       emit(AuthError(e.toString()));
-//       emit(UnAuthenticated());
-//     }
-//   }
-// }
   Future<void> _checkProfileStatus(
     CheckProfileStatus event,
     Emitter<AuthState> emit,
@@ -104,17 +64,6 @@ Future<void> _navigateToProfile(
         // Immediately navigate to profile completion
         emit(Authenticated());
       }
-      // if (user != null) {
-      //   final profileComplete = await firestoreService.isProfileComplete(
-      //     user.uid,
-      //   );
-      //   if (profileComplete) {
-      //     emit(Authenticated());
-      //   } else {
-      //     emit(ProfileIncomplete(user.uid));
-      //   }
-      // }
-      // emit(Authenticated());
     } catch (e) {
       emit(AuthError(e.toString()));
       emit(UnAuthenticated());
@@ -129,18 +78,6 @@ Future<void> _navigateToProfile(
     try {
       await authRepo.signIn(email: event.email, password: event.password);
       final user = FirebaseAuth.instance.currentUser;
-      // if (user != null) {
-      //   final profileComplete = await firestoreService.isProfileComplete(
-      //     user.uid,
-      //   );
-      //   if (profileComplete) {
-      //     emit(Authenticated());
-      //   } else {
-      //     emit(ProfileIncomplete(user.uid));
-      //   }
-      // }
-      // add(CheckProfileStatus());
-      // emit(Authenticated());
        if (user != null) {
       emit(Authenticated());
     } else {
@@ -161,19 +98,13 @@ Future<void> _navigateToProfile(
     try {
       await authRepo.signInWithGoogle();
       final user = FirebaseAuth.instance.currentUser;
-      // if (user != null) {
-      //   final profileComplete = await firestoreService.isProfileComplete(
-      //     user.uid,
-      //   );
-      //   if (profileComplete) {
-      //     emit(Authenticated());
-      //   } else {
-      //     emit(ProfileIncomplete(user.uid));
-      //   }
-      // }
-
-      // add(CheckProfileStatus());
-      emit(Authenticated());
+      if(user!=null){
+emit(Authenticated());
+      }else {
+      emit(AuthError('Wrong credentials'));
+      emit(UnAuthenticated());
+    }
+      
     } catch (e) {
       emit(AuthError(e.toString()));
       emit(UnAuthenticated());

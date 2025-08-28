@@ -1,6 +1,7 @@
 import "package:app/bloc/auth/auth_bloc.dart";
 import "package:app/pages/auth/signup_page.dart";
 import "package:app/pages/home/home.dart";
+import "package:app/pages/layout/main_layout.dart";
 import "package:email_validator/email_validator.dart";
 import "package:flutter/material.dart";
 import "package:flutter_bloc/flutter_bloc.dart";
@@ -37,7 +38,7 @@ class _SignInState extends State<SignIn> {
             // Navigating to the dashboard screen if the user is authenticated
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const Home()),
+              MaterialPageRoute(builder: (context) => const MainLayout()),
             );
           }
           if (state is AuthError) {
@@ -50,7 +51,7 @@ class _SignInState extends State<SignIn> {
         child: BlocBuilder<AuthBloc, AuthState>(
           builder: (context, state) {
             if (state is Loading) {
-              // Showing the loading indicator while the user is signing in
+              // Showing the loading indicator while the user is signing i
               return const Center(child: CircularProgressIndicator());
             }
             if (state is UnAuthenticated) {

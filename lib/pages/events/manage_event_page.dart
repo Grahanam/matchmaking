@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:app/bloc/event/event_bloc.dart';
 import 'package:app/models/event.dart';
 import 'package:app/models/feedbackmodel.dart';
@@ -14,6 +15,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:app/pages/chat/event_chat_page.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 
 class ManageEventPage extends StatefulWidget {
   final String eventId;
@@ -28,11 +30,13 @@ class _ManageEventPageState extends State<ManageEventPage> {
   bool _isGrouping = false;
 
   final ScrollController _scrollController = ScrollController();
+  late final ValueNotifier<bool> _scrolledNotifier;
   int _completedCount = 0;
   int _totalCheckins = 0;
   StreamSubscription? _applicantSubscription;
   StreamSubscription? _checkinSubscription;
   String get _aiApiToken => dotenv.env['AI_API_TOKEN'] ?? '';
+  String get geminiApiKey => dotenv.env['GEMINI_API_TOKEN'] ?? '';
 
   // static const String _aiApiEndpoint =
   //     'https://models.github.ai/inference/chat/completions';
@@ -45,14 +49,26 @@ class _ManageEventPageState extends State<ManageEventPage> {
   @override
   void initState() {
     super.initState();
-     if (_aiApiToken.isEmpty) {
-    debugPrint('WARNING: AI_API_TOKEN is not set in .env file');
-  }
+    if (_aiApiToken.isEmpty) {
+      debugPrint('WARNING: AI_API_TOKEN is not set in .env file');
+    }
     Future.microtask(() {
       context.read<EventBloc>().add(FetchEventWithApplicants(widget.eventId));
       _setupApplicantListener();
       _setupCheckInListener();
     });
+      _scrolledNotifier = ValueNotifier<bool>(false);
+    _scrollController.addListener(_scrollListener);
+  }
+
+  void _scrollListener() {
+    if (!_scrollController.hasClients) return;
+
+    final isScrolled = _scrollController.offset > 50;
+    if (_scrolledNotifier.hasListeners &&
+        isScrolled != _scrolledNotifier.value) {
+      _scrolledNotifier.value = isScrolled;
+    }
   }
 
   void _setupCheckInListener() {
@@ -65,7 +81,11 @@ class _ManageEventPageState extends State<ManageEventPage> {
 
   @override
   void dispose() {
+    if (_scrollController.hasListeners) {
+      _scrollController.removeListener(_scrollListener);
+    }
     _scrollController.dispose();
+    _scrolledNotifier.dispose();
     _applicantSubscription?.cancel();
     _checkinSubscription?.cancel();
     super.dispose();
@@ -333,55 +353,100 @@ class _ManageEventPageState extends State<ManageEventPage> {
       }
       // Prepare the prompt
       // Update the prompt in _callGitHubAIGroupFormation
+      //       final prompt = '''
+      // You are an expert event group formation system. Create optimized groups for networking events with STRICT adherence to these rules:
+
+      // NON-NEGOTIABLE GROUP RULES:
+      // 1. Group size: 4-6 members
+      //    - ABSOLUTELY NO groups with <4 members
+      //    - STRICTLY AVOID groups of 5 when groups of 4 and 6 are possible
+      //    - Groups of 6 MUST be used when mathematically unavoidable OR when it enables perfect gender balance (3M/3F)
+      // 2. Gender balance requirements:
+      //    - PRIMARY GOAL: Equal M/F ratio in every group
+      //    - ACCEPTABLE: ±1 gender difference (3M/2F, 2M/3F)
+      //    - UNACCEPTABLE: Groups with >2 gender imbalance or single-gender groups
+      // 3. Composition strategy:
+      //    ${_generateGroupingStrategy(users.length)}
+      //    - For 10 participants: ONLY create one group of 4 and one group of 6
+      //    - NEVER create two groups of 5 for 10 participants
+
+      // GROUP FORMATION PRIORITIES (in order):
+      // 1. Maintain minimum 4 members per group
+      // 2. Achieve perfect gender balance (2M/2F in group of 4, 3M/3F in group of 6)
+      // 3. Avoid groups of 5 at all costs
+      // 4. Ensure answer compatibility within groups
+      // 5. Maximize potential matches across groups
+
+      // ANSWER-BASED COMPATIBILITY:
+      // - Cluster participants with:
+      //   * Shared values (${_extractTopTheme(users, 'values')})
+      //   * Complementary personalities (${_extractTopTheme(users, 'personality')})
+      //   * Interesting differences (${_extractTopTheme(users, 'interests')})
+      // - Create conversation potential through balanced traits
+
+      // OUTPUT REQUIREMENTS:
+      // [{"name": "Group 1", "members": ["id1","id2"], "genderBalance": "2M/2F"},...]
+
+      // Current event stats:
+      // - Total participants: ${users.length}
+      // - Gender distribution: ${_calculateGenderDistribution(users)}
+      // - Key compatibility factors: ${_extractCompatibilityFactors(users)}
+      // ''';
+
       final prompt = '''
-You are an expert event group formation system. Create optimized groups for networking events with STRICT adherence to these rules:
+You are an expert event group formation system. Create optimized groups for networking events.
+
+STRICT OUTPUT RULES:
+- You MUST use ONLY the provided participant IDs: ${idMapping.keys.join(", ")}.
+- DO NOT invent new IDs like m1/f1. ONLY use the provided IDs.
+- Output must be a JSON array of groups, no explanations.
 
 NON-NEGOTIABLE GROUP RULES:
-1. Group size: 4-6 members
-   - ABSOLUTELY NO groups with <4 members
-   - STRICTLY AVOID groups of 5 when groups of 4 and 6 are possible
-   - Groups of 6 MUST be used when mathematically unavoidable OR when it enables perfect gender balance (3M/3F)
-2. Gender balance requirements:
-   - PRIMARY GOAL: Equal M/F ratio in every group
-   - ACCEPTABLE: ±1 gender difference (3M/2F, 2M/3F)
-   - UNACCEPTABLE: Groups with >2 gender imbalance or single-gender groups
+1. Group size: 4–6 members
+   - NO groups with fewer than 4
+   - AVOID groups of 5 unless absolutely necessary
+   - Use groups of 6 when unavoidable or for perfect gender balance
+2. Gender balance:
+   - Ideal: equal M/F
+   - Acceptable: ±1 difference
+   - Never allow >2 imbalance or single-gender groups
 3. Composition strategy:
    ${_generateGroupingStrategy(users.length)}
-   - For 10 participants: ONLY create one group of 4 and one group of 6
-   - NEVER create two groups of 5 for 10 participants
 
-GROUP FORMATION PRIORITIES (in order):
-1. Maintain minimum 4 members per group
-2. Achieve perfect gender balance (2M/2F in group of 4, 3M/3F in group of 6)
-3. Avoid groups of 5 at all costs
-4. Ensure answer compatibility within groups
-5. Maximize potential matches across groups
+GROUP FORMATION PRIORITIES:
+1. Minimum 4 per group
+2. Perfect gender balance
+3. Avoid groups of 5
+4. Answer compatibility
+5. Maximize networking potential
 
-ANSWER-BASED COMPATIBILITY:
-- Cluster participants with:
-  * Shared values (${_extractTopTheme(users, 'values')})
-  * Complementary personalities (${_extractTopTheme(users, 'personality')})
-  * Interesting differences (${_extractTopTheme(users, 'interests')})
-- Create conversation potential through balanced traits
-
-OUTPUT REQUIREMENTS:
-[{"name": "Group 1", "members": ["id1","id2"], "genderBalance": "2M/2F"},...]
+OUTPUT FORMAT (JSON only):
+[
+  {"name": "Group 1", "members": ["id1","id2"], "genderBalance": "2M/2F"},
+  {"name": "Group 2", "members": ["id3","id4"], "genderBalance": "3M/3F"}
+]
 
 Current event stats:
 - Total participants: ${users.length}
 - Gender distribution: ${_calculateGenderDistribution(users)}
-- Key compatibility factors: ${_extractCompatibilityFactors(users)}
+- Compatibility factors: ${_extractCompatibilityFactors(users)}
 ''';
 
-      // Make API request to GitHub AI using OpenAI-compatible format
-      // final response = await http.post(
-      //   Uri.parse('https://models.github.ai/inference/chat/completions'),
-      //   headers: {
-      //     'Authorization': 'Bearer $_aiApiToken',
-      //     'Content-Type': 'application/json',
-      //     'Accept': 'application/json',
-      //   },
-      //   body: jsonEncode({
+      // final dio = Dio(
+      //   BaseOptions(
+      //     baseUrl: 'https://models.github.ai',
+      //     headers: {
+      //       'Authorization': 'Bearer $_aiApiToken',
+      //       'Content-Type': 'application/json',
+      //       'Accept': 'application/json',
+      //     },
+      //     validateStatus: (status) => true, // Accept all status codes
+      //   ),
+      // );
+
+      // final response = await dio.post(
+      //   '/inference/chat/completions',
+      //   data: jsonEncode({
       //     "model": "openai/gpt-4.1",
       //     "messages": [
       //       {
@@ -392,60 +457,41 @@ Current event stats:
       //       {"role": "user", "content": prompt},
       //     ],
       //     "max_tokens": 1000,
-      //     "temperature": 0.7,
+      //     "temperature": 0.3,
       //     "response_format": {"type": "json_object"},
       //   }),
       // );
 
-      // Create the request with explicit encoding
-      // final request = http.Request(
-      //   'POST',
-      //   Uri.parse('https://models.github.ai/inference/chat/completions')
-      // )
-      //   ..headers['Authorization'] = 'Bearer $_aiApiToken'
-      //   ..headers['Content-Type'] = 'application/json'
-      //   ..body = jsonEncode({
-      //     "model": "openai/gpt-4.1",
-      //     "messages": [
-      //       {
-      //         "role": "system",
-      //         "content":
-      //             "You are a helpful event group formation assistant. Return ONLY valid JSON arrays.",
-      //       },
-      //       {"role": "user", "content": prompt},
-      //     ],
-      //     "max_tokens": 1000,
-      //     "temperature": 0.7,
-      //     "response_format": {"type": "json_object"},
-      //   });
-
       final dio = Dio(
         BaseOptions(
-          baseUrl: 'https://models.github.ai',
-          headers: {
-            'Authorization': 'Bearer $_aiApiToken',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
+          baseUrl:
+              'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+          headers: {'Content-Type': 'application/json'},
+          queryParameters: {
+            'key': geminiApiKey, // API key as query parameter for Gemini
           },
-          validateStatus: (status) => true, // Accept all status codes
+          validateStatus: (status) => true,
         ),
       );
 
       final response = await dio.post(
-        '/inference/chat/completions',
+        '', // Empty string since baseUrl contains the full endpoint
         data: jsonEncode({
-          "model": "openai/gpt-4.1",
-          "messages": [
+          "contents": [
             {
-              "role": "system",
-              "content":
-                  "You are a helpful event group formation assistant. Return ONLY valid JSON arrays.",
+              "parts": [
+                {
+                  "text":
+                      "You are a helpful event group formation assistant. Return ONLY valid JSON arrays. $prompt",
+                },
+              ],
             },
-            {"role": "user", "content": prompt},
           ],
-          "max_tokens": 1000,
-          "temperature": 0.3,
-          "response_format": {"type": "json_object"},
+          "generationConfig": {
+            "maxOutputTokens": 1000,
+            "temperature": 0.3,
+            "responseMimeType": "application/json",
+          },
         }),
       );
 
@@ -457,22 +503,18 @@ Current event stats:
         final data = response.data;
 
         // Validate response structure
-        if (data['choices'] == null || data['choices'].isEmpty) {
-          throw FormatException("AI response missing 'choices' field");
+        // if (data['choices'] == null || data['choices'].isEmpty) {
+        //   throw FormatException("AI response missing 'choices' field");
+        // }
+        // final content = data['choices'][0]['message']['content'];
+        // debugPrint('Raw AI Response: $content');
+
+        if (data['candidates'] == null || data['candidates'].isEmpty) {
+          throw FormatException("Gemini response missing 'candidates' field");
         }
 
-        // Send the request and get the response
-        // final streamedResponse = await request.send();
-        // final response = await http.Response.fromStream(streamedResponse);
-
-        //   debugPrint('Response status: ${response.statusCode}');
-        //   debugPrint('Response headers: ${response.headers}');
-        //   debugPrint('Response body: ${response.body}');
-
-        // if (response.statusCode == 200) {
-        //   final data = jsonDecode(response.body);
-        // Extract content from the correct path in the response
-        final content = data['choices'][0]['message']['content'];
+        // Extract content from Gemini response format
+        final content = data['candidates'][0]['content']['parts'][0]['text'];
         debugPrint('Raw AI Response: $content');
 
         // Extract and parse JSON
@@ -484,6 +526,7 @@ Current event stats:
         } else if (jsonString.startsWith('```')) {
           jsonString = jsonString.substring(3, jsonString.length - 3).trim();
         }
+
         final parsedResponse = json.decode(jsonString);
         List<dynamic> groupsList = [];
 
@@ -514,32 +557,58 @@ Current event stats:
 
         return fixedGroups.cast<Map<String, dynamic>>();
 
+        // // Extract and parse JSON
+        // String jsonString = content.trim();
+
+        // // Handle code block formatting
+        // if (jsonString.startsWith('```json')) {
+        //   jsonString = jsonString.substring(7, jsonString.length - 3).trim();
+        // } else if (jsonString.startsWith('```')) {
+        //   jsonString = jsonString.substring(3, jsonString.length - 3).trim();
+        // }
         // final parsedResponse = json.decode(jsonString);
+        // List<dynamic> groupsList = [];
+
+        // // Handle both array and object responses
+        // if (parsedResponse is List) {
+        //   groupsList = parsedResponse;
+        // } else if (parsedResponse is Map &&
+        //     parsedResponse.containsKey('groups')) {
+        //   groupsList = parsedResponse['groups'] as List<dynamic>;
+        // } else {
+        //   throw FormatException("Unexpected response format: $jsonString");
+        // }
+
         // final fixedGroups =
-        //     parsedResponse.map((group) {
+        //     groupsList.map((group) {
         //       final members =
         //           (group['members'] as List<dynamic>).map((id) {
         //             final idStr = id.toString();
-        //             return idMapping[idStr] ??
-        //                 idStr; // Use real ID if mapping exists
+        //             return idMapping[idStr] ?? idStr;
         //           }).toList();
 
         //       return {
-        //         'name': group['name'],
+        //         'name': group['name'] ?? 'Unnamed Group',
         //         'members': members,
-        //         'genderBalance': group['genderBalance'],
+        //         'genderBalance': group['genderBalance'] ?? 'Unknown',
         //       };
         //     }).toList();
+
         // return fixedGroups.cast<Map<String, dynamic>>();
       } else {
+        // throw Exception(
+        //   "GitHub AI group formation failed: ${response.statusCode}\n"
+        //   "Headers: ${response.headers}\n"
+        //   "Body: ${response.data}",
+        // );
         throw Exception(
-          "GitHub AI group formation failed: ${response.statusCode}\n"
+          "Gemini group formation failed: ${response.statusCode}\n" // Changed from GitHub AI
           "Headers: ${response.headers}\n"
           "Body: ${response.data}",
         );
       }
     } catch (e) {
-      debugPrint('GitHub AI Group Formation Error: $e');
+      debugPrint('Gemini Group Formation Error: $e');
       rethrow;
     }
   }
@@ -645,27 +714,60 @@ Current event stats:
         throw Exception('No user data available for matching');
       }
 
-      // Updated prompt with explicit instructions
-      final prompt = '''
-You are an event matchmaking assistant. Create pairs for networking using the following user data:
+          final prompt = '''
+You are an event matchmaking assistant with a poetic touch. Create pairs for networking using the following user data:
 ${jsonEncode(users)}
 
 STRICT RULES:
 - Use EXACT user IDs from the "userId" field in the input data (e.g., "2xEqXvhhKOhbtGNUcny22GdRvg23")
 - Never use descriptive names like "user 8" or "user 9"
-- Match users from DIFFERENT groups
+- Match users from SAME groups
 - Respect gender preferences strictly
 - Prioritize pairs with mutual high feedback ratings
-- If groups are unbalanced, leave 1 person unmatched
-- Never match same-group members
+- If groups are gender unbalanced, leave 1 person unmatched
+- If Group is gender balanced correctly, then no one should be unmatched.
+
+For the "reason" field, create poetic, engaging descriptions like:
+- "Two creative souls who both appreciate art and deep conversations"
+- "A connection between adventurous spirits who both love travel and new experiences"
+- "Shared passion for technology and innovation makes this a promising match"
+- "Complementary energies: one's calm nature balances the other's vibrant personality"
+
+Avoid technical language like "male prefers women". Instead, focus on:
+- Shared interests and hobbies
+- Complementary personality traits
+- Common values and goals
+- Unique connections between their profiles
 
 Format output STRICTLY as:
 [{
   "userId": "exact_user_id_from_input", 
   "matchedWith": "exact_user_id_from_input",
-  "reason": "Compatibility details",
+  "reason": "Poetic, engaging compatibility description (1-2 sentences)",
   "groupCompatibility": "High"
-}]  especially for username=user8 use its userId''';
+}]''';
+
+//       // Updated prompt with explicit instructions
+//       final prompt = '''
+// You are an event matchmaking assistant. Create pairs for networking using the following user data:
+// ${jsonEncode(users)}
+
+// STRICT RULES:
+// - Use EXACT user IDs from the "userId" field in the input data (e.g., "2xEqXvhhKOhbtGNUcny22GdRvg23")
+// - Never use descriptive names like "user 8" or "user 9"
+// - Match users from SAME groups
+// - Respect gender preferences strictly
+// - Prioritize pairs with mutual high feedback ratings
+// - If groups are gender unbalanced, leave 1 person unmatched
+// - If Group is gender balanced correctly, then no one should be unmatched.
+
+// Format output STRICTLY as:
+// [{
+//   "userId": "exact_user_id_from_input", 
+//   "matchedWith": "exact_user_id_from_input",
+//   "reason": "Compatibility details",
+//   "groupCompatibility": "High"
+// }]  especially for username=user8 use its userId''';
 
       // Make the API request
       // final response = await http.post(
@@ -697,49 +799,92 @@ Format output STRICTLY as:
 
       // debugPrint('Raw AI Response: $content');
 
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: 'https://models.github.ai',
-          headers: {
-            'Authorization': 'Bearer $_aiApiToken',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          validateStatus: (status) => true, // Accept all status codes
-        ),
-      );
+      // final dio = Dio(
+      //   BaseOptions(
+      //     baseUrl: 'https://models.github.ai',
+      //     headers: {
+      //       'Authorization': 'Bearer $_aiApiToken',
+      //       'Content-Type': 'application/json',
+      //       'Accept': 'application/json',
+      //     },
+      //     validateStatus: (status) => true,
+      //   ),
+      // );
 
-      final response = await dio.post(
-        '/inference/chat/completions',
-        data: jsonEncode({
-          "model": "openai/gpt-4.1",
-          "messages": [
+      // final response = await dio.post(
+      //   '/inference/chat/completions',
+      //   data: jsonEncode({
+      //     "model": "openai/gpt-4.1",
+      //     "messages": [
+      //       {
+      //         "role": "system",
+      //         "content":
+      //             "You are a helpful event matchmaking assistant. Return ONLY valid JSON arrays.",
+      //       },
+      //       {"role": "user", "content": prompt},
+      //     ],
+      //     "max_tokens": 1000,
+      //     "temperature": 0.3,
+      //     "response_format": {"type": "json_object"},
+      //   }),
+      // );
+
+      // debugPrint('Response status: ${response.statusCode}');
+      // debugPrint('Response headers: ${response.headers}');
+      // debugPrint('Response body: ${response.data}');
+
+      final response = await http.post(
+        Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$geminiApiKey',
+        ),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": [
             {
-              "role": "system",
-              "content":
-                  "You are a helpful event matchmaking assistant. Return ONLY valid JSON arrays.",
+              "role": "user", // Gemini doesn't use system messages like OpenAI
+              "parts": [
+                {
+                  "text":
+                      "You are a helpful event matchmaking assistant. Return ONLY valid JSON arrays.\n\n$prompt",
+                },
+              ],
             },
-            {"role": "user", "content": prompt},
           ],
-          "max_tokens": 1000,
-          "temperature": 0.3,
-          "response_format": {"type": "json_object"},
+          "generationConfig": {
+            "responseMimeType": "application/json",
+            "temperature": 0.3,
+            "maxOutputTokens": 1000,
+          },
+          "safetySettings": [
+            {
+              "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+              "threshold": "BLOCK_NONE",
+            },
+            {
+              "category": "HARM_CATEGORY_HATE_SPEECH",
+              "threshold": "BLOCK_NONE",
+            },
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {
+              "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              "threshold": "BLOCK_NONE",
+            },
+          ],
         }),
       );
-
-      debugPrint('Response status: ${response.statusCode}');
-      debugPrint('Response headers: ${response.headers}');
-      debugPrint('Response body: ${response.data}');
-
       if (response.statusCode == 200) {
-        final data = response.data;
+        // final data = response.data;
 
-        // Validate response structure
-        if (data['choices'] == null || data['choices'].isEmpty) {
-          throw FormatException("AI response missing 'choices' field");
-        }
+        // // Validate response structure
+        // if (data['choices'] == null || data['choices'].isEmpty) {
+        //   throw FormatException("AI response missing 'choices' field");
+        // }
 
-        final content = data['choices'][0]['message']['content'];
+        // final content = data['choices'][0]['message']['content'];
+
+        final responseData = json.decode(response.body);
+        final content =
+            responseData['candidates'][0]['content']['parts'][0]['text'];
         debugPrint('Raw AI Response: $content');
 
         // Enhanced cleaning for common issues
@@ -835,7 +980,8 @@ Format output STRICTLY as:
       } else {
         throw Exception(
           "AI matchmaking failed: ${response.statusCode}\n"
-          "Body: ${response.data}",
+          // "Body: ${response.data}",
+          "Body: ${response.body}",
         );
       }
     } catch (e) {
@@ -2244,10 +2390,10 @@ Format output STRICTLY as:
 
   @override
   Widget build(BuildContext context) {
-    // final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         title: Text(
           "Manage Event",
           style: GoogleFonts.raleway(fontWeight: FontWeight.bold),
@@ -2275,94 +2421,129 @@ Format output STRICTLY as:
             },
           ),
         ],
+        flexibleSpace: ValueListenableBuilder<bool>(
+            valueListenable: _scrolledNotifier,
+            builder: (context, isScrolled, child) {
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  gradient:
+                      isScrolled
+                          ? LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.pinkAccent.shade100,
+                              Colors.purple,
+                              Colors.deepPurple,
+                            ],
+                          )
+                          : null,
+                ),
+              );
+            },
+          ),
       ),
-      body: BlocBuilder<EventBloc, EventState>(
-        builder: (context, state) {
-          if (state is EventLoading || state is EventInitial) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (state is EventFailure) {
-            return Center(
-              child: Text(
-                "Error: ${state.error}",
-                style: GoogleFonts.raleway(),
-              ),
-            );
-          }
-
-          if (state is EventWithApplicantsLoaded) {
-            final event = state.event;
-
-            return RefreshIndicator(
-              onRefresh: () async {
-                context.read<EventBloc>().add(
-                  FetchEventWithApplicants(widget.eventId),
-                );
-                await _updateQuestionnaireCount();
-              },
-              child: ListView(
-                controller: _scrollController,
-                children: [
-                  _buildEventHeader(event),
-
-                  _buildApplicantsSection(event.id),
-
-                  // Check-ins StreamBuilder
-                  StreamBuilder<QuerySnapshot>(
-                    stream:
-                        FirebaseFirestore.instance
-                            .collection('checkins')
-                            .where('eventId', isEqualTo: event.id)
-                            .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Text(
-                            'Error: ${snapshot.error}',
-                            style: GoogleFonts.raleway(),
-                          ),
-                        );
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return Card(
-                          margin: const EdgeInsets.all(16),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Center(
-                              child: Text(
-                                "No check-ins yet",
-                                style: GoogleFonts.raleway(),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              ui.Color.fromARGB(100, 255, 249, 136),
+              ui.Color.fromARGB(100, 158, 126, 249),
+              ui.Color.fromARGB(100, 104, 222, 245),
+            ],
+          ),
+        ),
+        child: BlocBuilder<EventBloc, EventState>(
+          builder: (context, state) {
+            if (state is EventLoading || state is EventInitial) {
+              return const Center(child: CircularProgressIndicator());
+            }
+        
+            if (state is EventFailure) {
+              return Center(
+                child: Text(
+                  "Error: ${state.error}",
+                  style: GoogleFonts.raleway(),
+                ),
+              );
+            }
+        
+            if (state is EventWithApplicantsLoaded) {
+              final event = state.event;
+        
+              return RefreshIndicator(
+                onRefresh: () async {
+                  context.read<EventBloc>().add(
+                    FetchEventWithApplicants(widget.eventId),
+                  );
+                  await _updateQuestionnaireCount();
+                },
+                child: ListView(
+                  controller: _scrollController,
+                  children: [
+                    _buildEventHeader(event),
+        
+                    _buildApplicantsSection(event.id),
+        
+                    // Check-ins StreamBuilder
+                    StreamBuilder<QuerySnapshot>(
+                      stream:
+                          FirebaseFirestore.instance
+                              .collection('checkins')
+                              .where('eventId', isEqualTo: event.id)
+                              .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Error: ${snapshot.error}',
+                              style: GoogleFonts.raleway(),
+                            ),
+                          );
+                        }
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return Card(
+                            margin: const EdgeInsets.all(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Center(
+                                child: Text(
+                                  "No check-ins yet",
+                                  style: GoogleFonts.raleway(),
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }
-
-                      return _buildCheckinsSection(snapshot.data!, event);
-                    },
-                  ),
-
-                  _buildGroupManagementSection(event),
-                  _buildFeedbackProgressSection(event),
-                  _buildMatchingSection(event),
-                  _buildMatchesSection(event.id),
-                  _buildQRSection(state.showQRCode, event),
-
-                  // Add some bottom padding
-                  const SizedBox(height: 40),
-                ],
-              ),
+                          );
+                        }
+        
+                        return _buildCheckinsSection(snapshot.data!, event);
+                      },
+                    ),
+        
+                    _buildGroupManagementSection(event),
+                    _buildFeedbackProgressSection(event),
+                    _buildMatchingSection(event),
+                    _buildMatchesSection(event.id),
+                    _buildQRSection(state.showQRCode, event),
+        
+                    // Add some bottom padding
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              );
+            }
+        
+            return Center(
+              child: Text("Unknown state", style: GoogleFonts.raleway()),
             );
-          }
-
-          return Center(
-            child: Text("Unknown state", style: GoogleFonts.raleway()),
-          );
-        },
+          },
+        ),
       ),
     );
   }

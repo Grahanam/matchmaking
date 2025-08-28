@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:app/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -33,13 +35,27 @@ class _CreateQuestionPageState extends State<CreateQuestionPage> {
   final TextEditingController _aiPromptController = TextEditingController();
   QuestionModel? _aiSuggestion;
 
+  final ScrollController _scrollController = ScrollController();
+  late final ValueNotifier<bool> _scrolledNotifier;
+
   @override
   void initState() {
     super.initState();
+    _scrolledNotifier = ValueNotifier<bool>(false);
+    _scrollController.addListener(_scrollListener);
     if (widget.existingQuestion != null) {
       _initializeWithExistingQuestion();
     } else {
       _addOptionField();
+    }
+  }
+  void _scrollListener() {
+    if (!_scrollController.hasClients) return;
+
+    final isScrolled = _scrollController.offset > 50;
+    if (_scrolledNotifier.hasListeners &&
+        isScrolled != _scrolledNotifier.value) {
+      _scrolledNotifier.value = isScrolled;
     }
   }
 
@@ -391,6 +407,12 @@ Now create a question based on the user's request:
 
   @override
   void dispose() {
+
+     if (_scrollController.hasListeners) {
+      _scrollController.removeListener(_scrollListener);
+    }
+    _scrollController.dispose();
+    _scrolledNotifier.dispose();
     _textController.dispose();
     for (var controller in _optionControllers) {
       controller.dispose();
@@ -498,17 +520,47 @@ Now create a question based on the user's request:
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         title: Text(
           widget.existingQuestion != null
               ? 'Edit Question'
-              : 'Create New Question',
+              : 'Create Question',
+        ),
+        flexibleSpace: ValueListenableBuilder<bool>(
+          valueListenable: _scrolledNotifier,
+          builder: (context, isScrolled, child) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              decoration: BoxDecoration(
+                gradient:
+                    isScrolled
+                        ? LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.pinkAccent.shade100,
+                            Colors.purple,
+                            Colors.deepPurple,
+                          ],
+                        )
+                        : null,
+              ),
+            );
+          },
         ),
         actions: [
           if (widget.existingQuestion == null) // Only show for new questions
             TextButton.icon(
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text('AI Suggestions'),
+              icon: const Icon(Icons.auto_awesome, color: Colors.pinkAccent),
+              label: const Text(
+              'AI Suggestions',
+              style: TextStyle(
+                color: Colors.pinkAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
               onPressed: _showAISuggestionModal,
             ),
           // IconButton(
@@ -518,235 +570,251 @@ Now create a question based on the user's request:
           // ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildSectionCard(
-              TextFormField(
-                controller: _textController,
-                decoration: const InputDecoration(
-                  labelText: 'Question Text',
-                  border: OutlineInputBorder(),
+      body: Container(
+        decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  ui.Color.fromARGB(100, 255, 249, 136),
+                  ui.Color.fromARGB(100, 158, 126, 249),
+                  ui.Color.fromARGB(100, 104, 222, 245),
+                ],
+              ),
+            ),
+        child: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              children: [
+                _buildSectionCard(
+                  TextFormField(
+                    controller: _textController,
+                    decoration: const InputDecoration(
+                      labelText: 'Question Text',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter question text';
+                      }
+                      return null;
+                    },
+                  ),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter question text';
-                  }
-                  return null;
-                },
-              ),
-            ),
-
-            _buildSectionCard(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Question Type'),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<QuestionType>(
-                    value: _questionType,
-                    items:
-                        QuestionType.values.map((type) {
-                          return DropdownMenuItem<QuestionType>(
-                            value: type,
-                            child: Text(_getQuestionTypeLabel(type)),
-                          );
-                        }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _questionType = value);
-                      }
-                    },
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            _buildSectionCard(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Category'),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<QuestionCategory>(
-                    value: _category,
-                    items:
-                        QuestionCategory.values.map((category) {
-                          return DropdownMenuItem<QuestionCategory>(
-                            value: category,
-                            child: Text(_getCategoryLabel(category)),
-                          );
-                        }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _category = value);
-                      }
-                    },
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            _buildSectionCard(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Question Weight (1-5)'),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    value: _weight,
-                    items:
-                        List.generate(5, (index) => index + 1).map((weight) {
-                          return DropdownMenuItem<int>(
-                            value: weight,
-                            child: Text(
-                              '$weight - ${_getWeightDescription(weight)}',
-                            ),
-                          );
-                        }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _weight = value);
-                      }
-                    },
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Scale values (only for scale type)
-            if (_questionType == QuestionType.scale)
-              _buildSectionCard(
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        initialValue: _scaleMin?.toString(),
-                        keyboardType: TextInputType.number,
+          
+                _buildSectionCard(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Question Type'),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<QuestionType>(
+                        value: _questionType,
+                        items:
+                            QuestionType.values.map((type) {
+                              return DropdownMenuItem<QuestionType>(
+                                value: type,
+                                child: Text(_getQuestionTypeLabel(type)),
+                              );
+                            }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _questionType = value);
+                          }
+                        },
                         decoration: const InputDecoration(
-                          labelText: 'Min Value',
                           border: OutlineInputBorder(),
                         ),
-                        onChanged: (value) {
-                          _scaleMin = int.tryParse(value);
-                        },
-                        validator: (value) {
-                          if (_scaleMin == null) {
-                            return 'Enter a number';
-                          }
-                          return null;
-                        },
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextFormField(
-                        initialValue: _scaleMax?.toString(),
-                        keyboardType: TextInputType.number,
+                    ],
+                  ),
+                ),
+          
+                _buildSectionCard(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Category'),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<QuestionCategory>(
+                        value: _category,
+                        items:
+                            QuestionCategory.values.map((category) {
+                              return DropdownMenuItem<QuestionCategory>(
+                                value: category,
+                                child: Text(_getCategoryLabel(category)),
+                              );
+                            }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _category = value);
+                          }
+                        },
                         decoration: const InputDecoration(
-                          labelText: 'Max Value',
                           border: OutlineInputBorder(),
                         ),
-                        onChanged: (value) {
-                          _scaleMax = int.tryParse(value);
-                        },
-                        validator: (value) {
-                          if (_scaleMax == null) {
-                            return 'Enter a number';
-                          }
-                          if (_scaleMin != null && _scaleMax! <= _scaleMin!) {
-                            return 'Max must be greater than min';
-                          }
-                          return null;
-                        },
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-
-            // Options for MCQ, MultiSelect, and Rank types
-            if (_questionType == QuestionType.multipleChoice ||
-                _questionType == QuestionType.multiSelect ||
-                _questionType == QuestionType.rank)
-              _buildSectionCard(
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_getOptionsLabel()),
-                    const SizedBox(height: 8),
-                    ..._optionControllers.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final controller = entry.value;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: controller,
-                                decoration: InputDecoration(
-                                  labelText: 'Option ${index + 1}',
-                                  border: const OutlineInputBorder(),
-                                  suffixIcon:
-                                      _optionControllers.length > 1
-                                          ? IconButton(
-                                            icon: const Icon(Icons.remove),
-                                            onPressed:
-                                                () => _removeOptionField(index),
-                                          )
-                                          : null,
+          
+                _buildSectionCard(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Question Weight (1-5)'),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<int>(
+                        value: _weight,
+                        items:
+                            List.generate(5, (index) => index + 1).map((weight) {
+                              return DropdownMenuItem<int>(
+                                value: weight,
+                                child: Text(
+                                  '$weight - ${_getWeightDescription(weight)}',
                                 ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Option cannot be empty';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
+                              );
+                            }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _weight = value);
+                          }
+                        },
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
                         ),
-                      );
-                    }),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: _addOptionField,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Option'),
-                    ),
-                  ],
-                ),
-              ),
-
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isSubmitting ? null : _submitQuestion,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child:
-                  _isSubmitting
-                      ? const CircularProgressIndicator()
-                      : Text(
-                        widget.existingQuestion != null
-                            ? 'Update Question'
-                            : 'Create Question',
-                        style: const TextStyle(fontSize: 16),
                       ),
+                    ],
+                  ),
+                ),
+          
+                // Scale values (only for scale type)
+                if (_questionType == QuestionType.scale)
+                  _buildSectionCard(
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: _scaleMin?.toString(),
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Min Value',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (value) {
+                              _scaleMin = int.tryParse(value);
+                            },
+                            validator: (value) {
+                              if (_scaleMin == null) {
+                                return 'Enter a number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: _scaleMax?.toString(),
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Max Value',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (value) {
+                              _scaleMax = int.tryParse(value);
+                            },
+                            validator: (value) {
+                              if (_scaleMax == null) {
+                                return 'Enter a number';
+                              }
+                              if (_scaleMin != null && _scaleMax! <= _scaleMin!) {
+                                return 'Max must be greater than min';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          
+                // Options for MCQ, MultiSelect, and Rank types
+                if (_questionType == QuestionType.multipleChoice ||
+                    _questionType == QuestionType.multiSelect ||
+                    _questionType == QuestionType.rank)
+                  _buildSectionCard(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_getOptionsLabel()),
+                        const SizedBox(height: 8),
+                        ..._optionControllers.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final controller = entry.value;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: controller,
+                                    decoration: InputDecoration(
+                                      labelText: 'Option ${index + 1}',
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon:
+                                          _optionControllers.length > 1
+                                              ? IconButton(
+                                                icon: const Icon(Icons.remove),
+                                                onPressed:
+                                                    () => _removeOptionField(index),
+                                              )
+                                              : null,
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Option cannot be empty';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: _addOptionField,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add Option'),
+                        ),
+                      ],
+                    ),
+                  ),
+          
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitQuestion,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child:
+                      _isSubmitting
+                          ? const CircularProgressIndicator()
+                          : Text(
+                            widget.existingQuestion != null
+                                ? 'Update Question'
+                                : 'Create Question',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
